@@ -3,92 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <title>GreenChat</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial;
-      background: #0a0a0a;
-      color: #00ff88;
-    }
-    .container {
-      padding: 20px;
-    }
-    input, button {
-      padding: 10px;
-      margin: 5px 0;
-      border: none;
-      border-radius: 5px;
-    }
-    input {
-      width: 100%;
-      background: #111;
-      color: #0f0;
-    }
-    button {
-      background: #00aa55;
-      color: black;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #00ff88;
-    }
-    .chat-box {
-      height: 300px;
-      overflow-y: auto;
-      background: #111;
-      padding: 10px;
-      margin: 10px 0;
-    }
-    .msg {
-      margin: 5px 0;
-    }
-    .room {
-      cursor: pointer;
-      padding: 5px;
-      border-bottom: 1px solid #333;
-    }
-  </style>
 </head>
 
-<body>
-<div class="container">
+<body style="background:black;color:#00ff88;font-family:Arial">
 
-  <h2>GreenChat</h2>
+<h2>GreenChat</h2>
 
-  <!-- LOGIN -->
-  <div id="login">
-    <input id="name" placeholder="Masukkan nama...">
-    <button onclick="saveName()">Masuk</button>
-  </div>
+<!-- LOGIN -->
+<div id="login">
+  <input id="name" placeholder="Nama">
+  <button onclick="saveName()">Masuk</button>
+</div>
 
-  <!-- LOBBY -->
-  <div id="lobby" style="display:none;">
-    <h3>Halo, <span id="username"></span></h3>
+<!-- LOBBY -->
+<div id="lobby" style="display:none;">
+  <h3>Halo, <span id="username"></span></h3>
+  <input id="roomInput" placeholder="Room">
+  <button onclick="createRoom()">Join</button>
+</div>
 
-    <input id="roomInput" placeholder="Nama room">
-    <button onclick="createRoom()">Buat / Join Room</button>
-
-    <h4>Room kamu:</h4>
-    <div id="roomList"></div>
-  </div>
-
-  <!-- CHAT -->
-  <div id="chat" style="display:none;">
-    <h3 id="roomTitle"></h3>
-    <div class="chat-box" id="chatBox"></div>
-    <input id="msg" placeholder="Ketik pesan...">
-    <button onclick="sendMsg()">Kirim</button>
-    <button onclick="back()">Kembali</button>
-  </div>
-
+<!-- CHAT -->
+<div id="chat" style="display:none;">
+  <h3 id="roomTitle"></h3>
+  <div id="chatBox" style="height:300px;overflow:auto;background:#111"></div>
+  <input id="msg">
+  <button onclick="sendMsg()">Kirim</button>
 </div>
 
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
 
 <script>
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAnDdfNeNhS5oYYYNkESOZHCYbwe3boY2Q",
   authDomain: "morse-f36e5.firebaseapp.com",
@@ -100,101 +48,141 @@ const firebaseConfig = {
   measurementId: "G-RLTTLG36SS"
 };
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const messaging = firebase.messaging();
 
-  let username = localStorage.getItem("name");
-  let currentRoom = "";
+let username = "";
+let currentRoom = "";
 
-  if (username) {
-    showLobby();
-  }
+// 🔔 NOTIF + TOKEN
+Notification.requestPermission().then(() => {
+  messaging.getToken({
+    vapidKey: "BMMSDF3f-Zbitwi1FAhHr9TSvMxXAa1eg_aaD6hSfPr7h_SUKSOs_eohZSqWlFESotd0Q1OPq7jO3gry00Ofguw"
+  }).then((token) => {
+    console.log("TOKEN:", token);
+    db.ref("tokens").push(token);
+  });
+});
 
-  function saveName() {
-    const name = document.getElementById("name").value;
-    if (!name) return;
-    localStorage.setItem("name", name);
-    username = name;
-    showLobby();
-  }
+// 🔊 SOUND
+let audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
 
-  function showLobby() {
-    document.getElementById("login").style.display = "none";
-    document.getElementById("lobby").style.display = "block";
-    document.getElementById("username").innerText = username;
-    loadRooms();
-  }
+// LOGIN
+function saveName() {
+  username = document.getElementById("name").value;
+  document.getElementById("login").style.display = "none";
+  document.getElementById("lobby").style.display = "block";
+  document.getElementById("username").innerText = username;
+}
 
-  function createRoom() {
-    const room = document.getElementById("roomInput").value;
-    if (!room) return;
-    joinRoom(room);
-  }
+// ROOM
+function createRoom() {
+  currentRoom = document.getElementById("roomInput").value;
+  document.getElementById("lobby").style.display = "none";
+  document.getElementById("chat").style.display = "block";
+  document.getElementById("roomTitle").innerText = currentRoom;
+  loadMessages();
+}
 
-  function joinRoom(room) {
-    currentRoom = room;
+// KIRIM
+function sendMsg() {
+  let msg = document.getElementById("msg").value;
+  if (!msg) return;
 
-    let rooms = JSON.parse(localStorage.getItem("rooms") || "[]");
-    if (!rooms.includes(room)) {
-      rooms.push(room);
-      localStorage.setItem("rooms", JSON.stringify(rooms));
+  db.ref("rooms/" + currentRoom).push({
+    name: username,
+    msg: msg
+  });
+
+  handleBot(msg);
+
+  document.getElementById("msg").value = "";
+}
+
+// LOAD CHAT
+function loadMessages() {
+  const chatBox = document.getElementById("chatBox");
+  chatBox.innerHTML = "";
+
+  db.ref("rooms/" + currentRoom).on("child_added", data => {
+    let d = data.val();
+
+    let div = document.createElement("div");
+    div.innerText = d.name + ": " + d.msg;
+    chatBox.appendChild(div);
+
+    // 🔔 NOTIF
+    if (Notification.permission === "granted") {
+      new Notification(d.name, { body: d.msg });
+      audio.play();
     }
 
-    document.getElementById("lobby").style.display = "none";
-    document.getElementById("chat").style.display = "block";
-    document.getElementById("roomTitle").innerText = room;
+    chatBox.scrollTop = chatBox.scrollHeight;
+  });
+}
 
-    loadMessages();
+//////////////////////////////////////////////////////
+// 🤖 BOT SYSTEM v0.5
+//////////////////////////////////////////////////////
+
+let admins = ["Evand"];
+
+function handleBot(msg) {
+  if (!msg.startsWith("/bot")) return;
+
+  if (msg === "/bot") {
+    sendBot(`hello there! what can i help
+
+1. jumlah pesan
+2. kick orang
+3. pilih admin
+4. ngobrol`);
   }
 
-  function loadRooms() {
-    const list = document.getElementById("roomList");
-    list.innerHTML = "";
-
-    let rooms = JSON.parse(localStorage.getItem("rooms") || "[]");
-
-    rooms.forEach(r => {
-      let div = document.createElement("div");
-      div.className = "room";
-      div.innerText = r;
-      div.onclick = () => joinRoom(r);
-      list.appendChild(div);
+  else if (msg.includes("jumlah")) {
+    db.ref("rooms/" + currentRoom).once("value", snap => {
+      sendBot("jumlah pesan: " + snap.numChildren());
     });
   }
 
-  function sendMsg() {
-    const msg = document.getElementById("msg").value;
-    if (!msg) return;
+  else if (msg.startsWith("/bot admin")) {
+    if (!admins.includes(username)) {
+      sendBot("kamu bukan admin");
+      return;
+    }
 
-    db.ref("rooms/" + currentRoom).push({
-      name: username,
-      msg: msg
-    });
-
-    document.getElementById("msg").value = "";
+    let target = msg.split(" ")[2];
+    admins.push(target);
+    sendBot(target + " sekarang admin");
   }
 
-  function loadMessages() {
-    const chatBox = document.getElementById("chatBox");
-    chatBox.innerHTML = "";
+  else if (msg.startsWith("/bot kick")) {
+    if (!admins.includes(username)) {
+      sendBot("kamu bukan admin");
+      return;
+    }
 
-    db.ref("rooms/" + currentRoom).off();
-
-    db.ref("rooms/" + currentRoom).on("child_added", data => {
-      let d = data.val();
-      let div = document.createElement("div");
-      div.className = "msg";
-      div.innerText = d.name + ": " + d.msg;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    });
+    let target = msg.split(" ")[2];
+    sendBot(target + " telah di-kick (simulasi)");
   }
 
-  function back() {
-    document.getElementById("chat").style.display = "none";
-    document.getElementById("lobby").style.display = "block";
+  else if (msg.startsWith("/bot say")) {
+    let text = msg.replace("/bot say ", "");
+    sendBot("kamu bilang: " + text);
   }
 
+  else {
+    sendBot("perintah tidak dikenal");
+  }
+}
+
+function sendBot(text) {
+  db.ref("rooms/" + currentRoom).push({
+    name: "BOT",
+    msg: text
+  });
+}
 </script>
 
 </body>
