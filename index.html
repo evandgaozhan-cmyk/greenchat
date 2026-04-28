@@ -220,6 +220,18 @@ function loadRooms() {
     div.innerText = r;
     div.onclick = () => joinRoom(r);
     list.appendChild(div);
+    setTimeout(() => {
+  sendBot(room,
+`🤖 MYGREEN ACTIVE
+
+Commands:
+/info - info grup
+/kick user detik - kick (admin)
+/add user - tambah admin
+/talk - ngobrol
+
+ketik bebas juga bisa 😎`);
+}, 800);
   });
 }
 
