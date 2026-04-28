@@ -10,28 +10,16 @@
       background: #0a0a0a;
       color: #00ff88;
     }
-    .container {
-      padding: 20px;
-    }
+    .container { padding: 20px; }
     input, button {
       padding: 10px;
       margin: 5px 0;
       border: none;
       border-radius: 5px;
     }
-    input {
-      width: 100%;
-      background: #111;
-      color: #0f0;
-    }
-    button {
-      background: #00aa55;
-      color: black;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #00ff88;
-    }
+    input { width: 100%; background: #111; color: #0f0; }
+    button { background: #00aa55; color: black; cursor: pointer; }
+    button:hover { background: #00ff88; }
     .chat-box {
       height: 300px;
       overflow-y: auto;
@@ -39,51 +27,41 @@
       padding: 10px;
       margin: 10px 0;
     }
-    .msg {
-      margin: 5px 0;
-    }
-    .room {
-      cursor: pointer;
-      padding: 5px;
-      border-bottom: 1px solid #333;
-    }
+    .msg { margin: 5px 0; }
+    .room { cursor: pointer; padding: 5px; border-bottom: 1px solid #333; }
   </style>
 </head>
 
 <body>
 <div class="container">
 
-  <h2>GreenChat</h2>
+<h2>GreenChat</h2>
 
-  <!-- LOGIN -->
-  <div id="login">
-    <input id="name" placeholder="Masukkan nama...">
-    <button onclick="saveName()">Masuk</button>
-  </div>
+<div id="login">
+  <input id="name" placeholder="Masukkan nama...">
+  <button onclick="saveName()">Masuk</button>
+</div>
 
-  <!-- LOBBY -->
-  <div id="lobby" style="display:none;">
-    <h3>Halo, <span id="username"></span></h3>
+<div id="lobby" style="display:none;">
+  <h3>Halo, <span id="username"></span></h3>
 
-    <input id="roomInput" placeholder="Nama room">
-    <button onclick="createRoom()">Buat / Join Room</button>
+  <input id="roomInput" placeholder="Nama room">
+  <button onclick="createRoom()">Buat / Join Room</button>
 
-    <h4>Room kamu:</h4>
-    <div id="roomList"></div>
-  </div>
+  <h4>Room kamu:</h4>
+  <div id="roomList"></div>
+</div>
 
-  <!-- CHAT -->
-  <div id="chat" style="display:none;">
-    <h3 id="roomTitle"></h3>
-    <div class="chat-box" id="chatBox"></div>
-    <input id="msg" placeholder="Ketik pesan...">
-    <button onclick="sendMsg()">Kirim</button>
-    <button onclick="back()">Kembali</button>
-  </div>
+<div id="chat" style="display:none;">
+  <h3 id="roomTitle"></h3>
+  <div class="chat-box" id="chatBox"></div>
+  <input id="msg" placeholder="Ketik pesan...">
+  <button onclick="sendMsg()">Kirim</button>
+  <button onclick="back()">Kembali</button>
+</div>
 
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
@@ -106,17 +84,90 @@ const db = firebase.database();
 let username = localStorage.getItem("name");
 let currentRoom = "";
 
-// 🔔 NOTIF SETUP
-let audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
-
-if ("Notification" in window) {
-  Notification.requestPermission().then(p => console.log("Notif:", p));
+// ================== ADMIN SYSTEM ==================
+function isAdmin(room, user) {
+  return user === "evand";
 }
 
-if (username) {
-  showLobby();
+// ================== BOT ==================
+function bot(room, msg) {
+  msg = msg.toLowerCase();
+
+  // MENU BOT
+  if (msg === "/bot") {
+    sendBot(room,
+`oh, hi ${username}
+
+1. info grup
+2. kick (admin)
+3. add admin (admin)
+4. ngobrol sama aku`);
+    return;
+  }
+
+  // INFO GRUP
+  if (msg === "1" || msg.includes("info")) {
+    db.ref("rooms/" + room + "/meta").once("value", snap => {
+      let m = snap.val() || {};
+      sendBot(room,
+`📊 INFO GRUP
+Nama: ${room}
+Pesan: ${m.messages || 0}
+User join: ${m.joins || 0}`);
+    });
+    return;
+  }
+
+  // KICK SYSTEM
+  if (msg.startsWith("2") || msg.includes("kick")) {
+    if (!isAdmin(room, username)) {
+      sendBot(room, "❌ hanya admin yang bisa kick");
+      return;
+    }
+
+    let parts = msg.split(" ");
+    let target = parts[1];
+    let time = parseInt(parts[2]) || 60; // detik
+
+    db.ref("rooms/" + room + "/banned/" + target).set(Date.now() + time*1000);
+
+    sendBot(room, `👢 ${target} di-kick selama ${time} detik`);
+    return;
+  }
+
+  // ADD ADMIN
+  if (msg.includes("add admin")) {
+    if (!isAdmin(room, username)) {
+      sendBot(room, "❌ bukan admin");
+      return;
+    }
+
+    let target = msg.split(" ").pop();
+
+    db.ref("rooms/" + room + "/admins/" + target).set(true);
+    sendBot(room, `⭐ ${target} sekarang admin`);
+    return;
+  }
+
+  // CHAT AI
+  const replies = [
+    "menarik 🤔",
+    "lanjutkan",
+    "aku dengar kamu",
+    "cerita lagi"
+  ];
+
+  sendBot(room, replies[Math.floor(Math.random()*replies.length)]);
 }
 
+function sendBot(room, text) {
+  db.ref("rooms/" + room).push({
+    name: "mygreen",
+    msg: text
+  });
+}
+
+// ================== USER SYSTEM ==================
 function saveName() {
   const name = document.getElementById("name").value;
   if (!name) return;
@@ -147,6 +198,9 @@ function joinRoom(room) {
     localStorage.setItem("rooms", JSON.stringify(rooms));
   }
 
+  // track join
+  db.ref("rooms/" + room + "/meta/joins").transaction(v => (v||0)+1);
+
   document.getElementById("lobby").style.display = "none";
   document.getElementById("chat").style.display = "block";
   document.getElementById("roomTitle").innerText = room;
@@ -169,16 +223,31 @@ function loadRooms() {
   });
 }
 
+// ================== CHAT ==================
 function sendMsg() {
   const msg = document.getElementById("msg").value;
   if (!msg) return;
 
-  db.ref("rooms/" + currentRoom).push({
-    name: username,
-    msg: msg
-  });
+  // CHECK BAN
+  db.ref("rooms/" + currentRoom + "/banned/" + username).once("value", snap => {
+    let ban = snap.val();
+    if (ban && ban > Date.now()) {
+      alert("kamu di-kick sementara");
+      return;
+    }
 
-  document.getElementById("msg").value = "";
+    db.ref("rooms/" + currentRoom).push({
+      name: username,
+      msg: msg
+    });
+
+    db.ref("rooms/" + currentRoom + "/meta/messages").transaction(v => (v||0)+1);
+
+    document.getElementById("msg").value = "";
+
+    // BOT TRIGGER
+    setTimeout(() => bot(currentRoom, msg), 400);
+  });
 }
 
 function loadMessages() {
@@ -189,17 +258,12 @@ function loadMessages() {
 
   db.ref("rooms/" + currentRoom).on("child_added", data => {
     let d = data.val();
+    if (!d.msg) return;
 
     let div = document.createElement("div");
     div.className = "msg";
     div.innerText = d.name + ": " + d.msg;
     chatBox.appendChild(div);
-
-    // 🔔 NOTIF TAMBAHAN (INI SAJA YANG BARU)
-    if (Notification.permission === "granted") {
-      new Notification(d.name, { body: d.msg });
-      audio.play();
-    }
 
     chatBox.scrollTop = chatBox.scrollHeight;
   });
@@ -209,6 +273,8 @@ function back() {
   document.getElementById("chat").style.display = "none";
   document.getElementById("lobby").style.display = "block";
 }
+
+if (username) showLobby();
 </script>
 
 </body>
