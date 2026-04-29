@@ -9,7 +9,7 @@ body {
   margin: 0;
   font-family: Arial;
   background: #ffffff;
-  color: #000000;
+  color: #000;
 }
 
 .container { padding: 20px; }
@@ -18,13 +18,41 @@ input, button {
   padding: 10px;
   margin: 5px 0;
 }
+
 .chat-box {
   height: 300px;
   overflow-y: auto;
   border: 1px solid #ccc;
   padding: 10px;
+  display: flex;
+  flex-direction: column;
 }
-.msg { margin: 5px 0; }
+
+/* CHAT BUBBLE */
+.bubble {
+  max-width: 70%;
+  padding: 8px 12px;
+  margin: 5px 0;
+  border-radius: 10px;
+}
+
+.me {
+  align-self: flex-end;
+  background: #00aa55;
+  color: white;
+}
+
+.other {
+  align-self: flex-start;
+  background: #e5e5e5;
+}
+
+/* typing */
+.typing {
+  font-size: 12px;
+  color: gray;
+}
+
 .room {
   cursor: pointer;
   padding: 5px;
@@ -58,8 +86,9 @@ input, button {
   <h3 id="roomTitle"></h3>
 
   <div class="chat-box" id="chatBox"></div>
+  <div class="typing" id="typingText"></div>
 
-  <input id="msg" placeholder="Ketik pesan...">
+  <input id="msg" placeholder="Ketik pesan..." oninput="typing()">
   <button onclick="sendMsg()">Kirim</button>
   <button onclick="back()">Kembali</button>
 </div>
@@ -87,8 +116,9 @@ const db = firebase.database();
 
 let username = localStorage.getItem("name");
 let currentRoom = "";
+let typingTimeout;
 
-// ================= LOGIN =================
+// LOGIN
 function saveName() {
   const name = document.getElementById("name").value;
   if (!name) return;
@@ -96,9 +126,7 @@ function saveName() {
   localStorage.setItem("name", name);
   username = name;
 
-  // 🔔 request notif sekali
   Notification.requestPermission();
-
   showLobby();
 }
 
@@ -109,7 +137,7 @@ function showLobby() {
   loadRooms();
 }
 
-// ================= ROOM =================
+// ROOM
 function createRoom() {
   const room = document.getElementById("roomInput").value;
   if (!room) return;
@@ -130,6 +158,7 @@ function joinRoom(room) {
   document.getElementById("roomTitle").innerText = room;
 
   loadMessages();
+  listenTyping();
 }
 
 function loadRooms() {
@@ -147,55 +176,80 @@ function loadRooms() {
   });
 }
 
-// ================= CHAT =================
+// CHAT
 function sendMsg() {
   const msg = document.getElementById("msg").value;
   if (!msg) return;
 
-  db.ref("rooms/" + currentRoom).push({
+  db.ref("rooms/" + currentRoom + "/messages").push({
     name: username,
     msg: msg
   });
 
   document.getElementById("msg").value = "";
+
+  // stop typing
+  db.ref("rooms/" + currentRoom + "/typing/" + username).set(false);
 }
 
-// ================= LOAD CHAT =================
 function loadMessages() {
   const chatBox = document.getElementById("chatBox");
   chatBox.innerHTML = "";
 
-  db.ref("rooms/" + currentRoom).off();
+  db.ref("rooms/" + currentRoom + "/messages").off();
 
-  db.ref("rooms/" + currentRoom).on("child_added", data => {
+  db.ref("rooms/" + currentRoom + "/messages").on("child_added", data => {
     let d = data.val();
-    if (!d.msg) return;
 
     let div = document.createElement("div");
-    div.className = "msg";
+    div.className = "bubble " + (d.name === username ? "me" : "other");
     div.innerText = d.name + ": " + d.msg;
 
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // 🔔 NOTIF SIMPLE (NO FCM)
+    // notif
     if (document.hidden && d.name !== username) {
-      new Notification(d.name, {
-        body: d.msg
-      });
+      new Notification(d.name, { body: d.msg });
     }
   });
 }
 
-// ================= BACK =================
+// TYPING SYSTEM
+function typing() {
+  db.ref("rooms/" + currentRoom + "/typing/" + username).set(true);
+
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    db.ref("rooms/" + currentRoom + "/typing/" + username).set(false);
+  }, 2000);
+}
+
+function listenTyping() {
+  const typingText = document.getElementById("typingText");
+
+  db.ref("rooms/" + currentRoom + "/typing").on("value", snap => {
+    let data = snap.val();
+    if (!data) return typingText.innerText = "";
+
+    let usersTyping = Object.keys(data).filter(u => data[u] && u !== username);
+
+    if (usersTyping.length > 0) {
+      typingText.innerText = usersTyping.join(", ") + " sedang mengetik...";
+    } else {
+      typingText.innerText = "";
+    }
+  });
+}
+
+// BACK
 function back() {
   document.getElementById("chat").style.display = "none";
   document.getElementById("lobby").style.display = "block";
 }
 
-// auto login
+// AUTO LOGIN
 if (username) showLobby();
-
 </script>
 
 </body>
