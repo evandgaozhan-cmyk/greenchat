@@ -122,7 +122,7 @@ function initFCM() {
     if (permission !== "granted") return;
 
     messaging.getToken({
-      vapidKey: "ISI_VAPID_KEY_KAMU"
+      vapidKey: "BMMSDF3f-Zbitwi1FAhHr9TSvMxXAa1eg_aaD6hSfPr7h_SUKSOs_eohZSqWlFESotd0Q1OPq7jO3gry00Ofguw"
     }).then(token => {
       if (!token) return;
 
@@ -205,29 +205,7 @@ function sendMsg() {
 }
 
 // ================= PUSH NOTIF (simple trigger system) =================
-function sendPushToRoom(text) {
-  db.ref("tokens").once("value", snap => {
-    let tokens = snap.val();
-    if (!tokens) return;
 
-    Object.values(tokens).forEach(token => {
-      fetch("https://fcm.googleapis.com/fcm/send", {
-        method: "POST",
-        headers: {
-          "Authorization": "key=ISI_SERVER_KEY_KAMU",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          to: token,
-          notification: {
-            title: currentRoom,
-            body: username + ": " + text
-          }
-        })
-      });
-    });
-  });
-}
 
 // ================= COMMAND =================
 function handleCommand(msg) {
