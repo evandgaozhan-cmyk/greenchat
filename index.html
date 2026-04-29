@@ -8,8 +8,8 @@
 body {
   margin: 0;
   font-family: Arial;
-  background: #0a0a0a;
-  color: #00ff88;
+  background: #ffffff;
+  color: #000000;
 }
 
 .container { padding: 20px; }
@@ -17,40 +17,18 @@ body {
 input, button {
   padding: 10px;
   margin: 5px 0;
-  border: none;
-  border-radius: 5px;
 }
-
-input {
-  width: 100%;
-  background: #111;
-  color: #0f0;
-}
-
-button {
-  background: #00aa55;
-  color: black;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #00ff88;
-}
-
 .chat-box {
   height: 300px;
   overflow-y: auto;
-  background: #111;
+  border: 1px solid #ccc;
   padding: 10px;
-  margin: 10px 0;
 }
-
 .msg { margin: 5px 0; }
-
 .room {
   cursor: pointer;
   padding: 5px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #ccc;
 }
 </style>
 </head>
@@ -90,7 +68,6 @@ button:hover {
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
 
 <script>
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -106,34 +83,12 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-
 const db = firebase.database();
-const messaging = firebase.messaging();
 
 let username = localStorage.getItem("name");
 let currentRoom = "";
 
-// ================= ADMIN =================
-function isAdmin(user) {
-  return user === "evand";
-}
-
-// ================= FCM INIT =================
-function initFCM() {
-  Notification.requestPermission().then(permission => {
-    if (permission !== "granted") return;
-
-    messaging.getToken({
-      vapidKey: "BMMSDF3f-Zbitwi1FAhHr9TSvMxXAa1eg_aaD6hSfPr7h_SUKSOs_eohZSqWlFESotd0Q1OPq7jO3gry00Ofguw"
-    }).then(token => {
-      if (!token) return;
-
-      db.ref("tokens/" + username).set(token);
-    });
-  });
-}
-
-// ================= USER =================
+// ================= LOGIN =================
 function saveName() {
   const name = document.getElementById("name").value;
   if (!name) return;
@@ -141,8 +96,10 @@ function saveName() {
   localStorage.setItem("name", name);
   username = name;
 
+  // 🔔 request notif sekali
+  Notification.requestPermission();
+
   showLobby();
-  initFCM(); // 🔔 penting: aktifkan notif saat login
 }
 
 function showLobby() {
@@ -152,6 +109,7 @@ function showLobby() {
   loadRooms();
 }
 
+// ================= ROOM =================
 function createRoom() {
   const room = document.getElementById("roomInput").value;
   if (!room) return;
@@ -194,55 +152,12 @@ function sendMsg() {
   const msg = document.getElementById("msg").value;
   if (!msg) return;
 
-  handleCommand(msg);
-
   db.ref("rooms/" + currentRoom).push({
     name: username,
     msg: msg
   });
 
   document.getElementById("msg").value = "";
-
-  sendPushToRoom(msg); // 🔔 FCM trigger
-}
-
-// ================= PUSH NOTIF (simple trigger system) =================
-
-
-// ================= COMMAND =================
-function handleCommand(msg) {
-  let parts = msg.trim().split(" ");
-  let cmd = parts[0].toLowerCase();
-
-  if (cmd === "/kick") {
-    if (!isAdmin(username)) return alert("bukan admin");
-
-    let target = parts[1];
-    let time = parseInt(parts[2]) || 60;
-
-    db.ref("rooms/" + currentRoom + "/banned/" + target)
-      .set(Date.now() + time * 1000);
-
-    return;
-  }
-
-  if (cmd === "/add") {
-    if (!isAdmin(username)) return alert("bukan admin");
-
-    let target = parts[1];
-
-    db.ref("rooms/" + currentRoom + "/admins/" + target)
-      .set(true);
-
-    return;
-  }
-
-  if (cmd === "/clear") {
-    if (!isAdmin(username)) return alert("bukan admin");
-
-    db.ref("rooms/" + currentRoom).remove();
-    return;
-  }
 }
 
 // ================= LOAD CHAT =================
@@ -261,9 +176,17 @@ function loadMessages() {
     div.innerText = d.name + ": " + d.msg;
 
     chatBox.appendChild(div);
-    
-  });
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // 🔔 NOTIF SIMPLE (NO FCM)
+    if (document.hidden && d.name !== username) {
+      new Notification(d.name, {
+        body: d.msg
+      });
     }
+  });
+}
+
 // ================= BACK =================
 function back() {
   document.getElementById("chat").style.display = "none";
