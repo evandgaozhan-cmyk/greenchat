@@ -8,64 +8,77 @@
 body {
   margin: 0;
   font-family: Arial;
-  background: #ffffff;
-  color: #000;
 }
 
-.container { padding: 20px; }
+/* LIGHT MODE */
+body.light {
+  background: #ffffff;
+  color: #008000;
+}
+
+/* DARK MODE */
+body.dark {
+  background: #0a0a0a;
+  color: #00ff88;
+}
+
+.container { padding: 15px; }
 
 input, button {
-  padding: 10px;
+  padding: 8px;
   margin: 5px 0;
 }
 
+/* CHAT BOX */
 .chat-box {
   height: 300px;
   overflow-y: auto;
-  border: 1px solid #ccc;
   padding: 10px;
   display: flex;
   flex-direction: column;
 }
 
-/* CHAT BUBBLE */
+/* BUBBLE */
 .bubble {
-  max-width: 70%;
-  padding: 8px 12px;
-  margin: 5px 0;
+  max-width: 75%;
+  padding: 6px 10px;
+  margin: 4px 0;
   border-radius: 10px;
+  font-size: 14px;
+  word-wrap: break-word;
 }
 
-.me {
-  align-self: flex-end;
-  background: #00aa55;
-  color: white;
-}
+/* LIGHT BUBBLE */
+.light .me { background: #00aa55; color: white; }
+.light .other { background: #e5e5e5; color: black; }
 
-.other {
-  align-self: flex-start;
-  background: #e5e5e5;
-}
+/* DARK BUBBLE */
+.dark .me { background: #00aa55; color: white; }
+.dark .other { background: #111; color: #0f0; }
 
-/* typing */
+.me { align-self: flex-end; }
+.other { align-self: flex-start; }
+
 .typing {
   font-size: 12px;
-  color: gray;
+  opacity: 0.7;
 }
 
 .room {
   cursor: pointer;
   padding: 5px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid #888;
 }
 </style>
 </head>
 
-<body>
+<body class="dark">
 
 <div class="container">
 
-<h2>GreenChat Classic</h2>
+<h2>GreenChat</h2>
+
+<button onclick="toggleMode()">Toggle Mode</button>
 
 <div id="login">
   <input id="name" placeholder="Masukkan nama...">
@@ -117,6 +130,24 @@ const db = firebase.database();
 let username = localStorage.getItem("name");
 let currentRoom = "";
 let typingTimeout;
+
+// MODE
+function toggleMode() {
+  let body = document.body;
+  if (body.classList.contains("dark")) {
+    body.classList.remove("dark");
+    body.classList.add("light");
+    localStorage.setItem("mode", "light");
+  } else {
+    body.classList.remove("light");
+    body.classList.add("dark");
+    localStorage.setItem("mode", "dark");
+  }
+}
+
+// load mode
+let savedMode = localStorage.getItem("mode") || "dark";
+document.body.className = savedMode;
 
 // LOGIN
 function saveName() {
@@ -176,10 +207,17 @@ function loadRooms() {
   });
 }
 
+// ADMIN CHECK
+function isAdmin(user) {
+  return user === "evand";
+}
+
 // CHAT
 function sendMsg() {
   const msg = document.getElementById("msg").value;
   if (!msg) return;
+
+  handleCommand(msg);
 
   db.ref("rooms/" + currentRoom + "/messages").push({
     name: username,
@@ -187,11 +225,22 @@ function sendMsg() {
   });
 
   document.getElementById("msg").value = "";
-
-  // stop typing
   db.ref("rooms/" + currentRoom + "/typing/" + username).set(false);
 }
 
+// COMMAND
+function handleCommand(msg) {
+  let cmd = msg.trim().toLowerCase();
+
+  if (cmd === "/clear") {
+    if (!isAdmin(username)) return alert("bukan admin");
+
+    db.ref("rooms/" + currentRoom + "/messages").remove();
+    alert("chat dibersihkan");
+  }
+}
+
+// LOAD CHAT
 function loadMessages() {
   const chatBox = document.getElementById("chatBox");
   chatBox.innerHTML = "";
@@ -208,21 +257,20 @@ function loadMessages() {
     chatBox.appendChild(div);
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // notif
     if (document.hidden && d.name !== username) {
       new Notification(d.name, { body: d.msg });
     }
   });
 }
 
-// TYPING SYSTEM
+// TYPING
 function typing() {
   db.ref("rooms/" + currentRoom + "/typing/" + username).set(true);
 
   clearTimeout(typingTimeout);
   typingTimeout = setTimeout(() => {
     db.ref("rooms/" + currentRoom + "/typing/" + username).set(false);
-  }, 2000);
+  }, 1500);
 }
 
 function listenTyping() {
@@ -234,11 +282,9 @@ function listenTyping() {
 
     let usersTyping = Object.keys(data).filter(u => data[u] && u !== username);
 
-    if (usersTyping.length > 0) {
-      typingText.innerText = usersTyping.join(", ") + " sedang mengetik...";
-    } else {
-      typingText.innerText = "";
-    }
+    typingText.innerText = usersTyping.length > 0
+      ? usersTyping.join(", ") + " sedang mengetik..."
+      : "";
   });
 }
 
