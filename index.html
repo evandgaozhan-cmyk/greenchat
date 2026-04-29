@@ -261,9 +261,7 @@ function loadMessages() {
     div.innerText = d.name + ": " + d.msg;
 
     chatBox.appendChild(div);
-    if (document.hidden && d.name !== username) {
-  new Notification(d.name, {
-    body: d.msg
+    
   });
     }
 // ================= BACK =================
