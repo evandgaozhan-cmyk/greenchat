@@ -90,6 +90,7 @@ button:hover {
 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -103,7 +104,9 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
+
 const db = firebase.database();
+const messaging = firebase.messaging();
 
 let username = localStorage.getItem("name");
 let currentRoom = "";
@@ -113,6 +116,21 @@ function isAdmin(user) {
   return user === "evand";
 }
 
+// ================= FCM INIT =================
+function initFCM() {
+  Notification.requestPermission().then(permission => {
+    if (permission !== "granted") return;
+
+    messaging.getToken({
+      vapidKey: "ISI_VAPID_KEY_KAMU"
+    }).then(token => {
+      if (!token) return;
+
+      db.ref("tokens/" + username).set(token);
+    });
+  });
+}
+
 // ================= USER =================
 function saveName() {
   const name = document.getElementById("name").value;
@@ -120,7 +138,9 @@ function saveName() {
 
   localStorage.setItem("name", name);
   username = name;
+
   showLobby();
+  initFCM(); // 🔔 penting: aktifkan notif saat login
 }
 
 function showLobby() {
@@ -180,6 +200,33 @@ function sendMsg() {
   });
 
   document.getElementById("msg").value = "";
+
+  sendPushToRoom(msg); // 🔔 FCM trigger
+}
+
+// ================= PUSH NOTIF (simple trigger system) =================
+function sendPushToRoom(text) {
+  db.ref("tokens").once("value", snap => {
+    let tokens = snap.val();
+    if (!tokens) return;
+
+    Object.values(tokens).forEach(token => {
+      fetch("https://fcm.googleapis.com/fcm/send", {
+        method: "POST",
+        headers: {
+          "Authorization": "key=ISI_SERVER_KEY_KAMU",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          to: token,
+          notification: {
+            title: currentRoom,
+            body: username + ": " + text
+          }
+        })
+      });
+    });
+  });
 }
 
 // ================= COMMAND =================
@@ -187,42 +234,33 @@ function handleCommand(msg) {
   let parts = msg.trim().split(" ");
   let cmd = parts[0].toLowerCase();
 
-  // /kick
   if (cmd === "/kick") {
     if (!isAdmin(username)) return alert("bukan admin");
 
     let target = parts[1];
     let time = parseInt(parts[2]) || 60;
 
-    if (!target) return;
-
     db.ref("rooms/" + currentRoom + "/banned/" + target)
       .set(Date.now() + time * 1000);
 
-    alert(`${target} di-kick ${time} detik`);
     return;
   }
 
-  // /add admin
   if (cmd === "/add") {
     if (!isAdmin(username)) return alert("bukan admin");
 
     let target = parts[1];
-    if (!target) return;
 
     db.ref("rooms/" + currentRoom + "/admins/" + target)
       .set(true);
 
-    alert(`${target} jadi admin`);
     return;
   }
 
-  // /clear
   if (cmd === "/clear") {
     if (!isAdmin(username)) return alert("bukan admin");
 
     db.ref("rooms/" + currentRoom).remove();
-    alert("chat dibersihkan");
     return;
   }
 }
