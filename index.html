@@ -2,73 +2,58 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GreenChat Classic</title>
+<title>GreenChat</title>
 
 <style>
-body {
-  margin: 0;
-  font-family: Arial;
-}
+body { margin:0; font-family:Arial; }
 
-/* LIGHT MODE */
-body.light {
-  background: #ffffff;
-  color: #008000;
-}
+body.light { background:#fff; color:#008000; }
+body.dark { background:#0a0a0a; color:#00ff88; }
 
-/* DARK MODE */
-body.dark {
-  background: #0a0a0a;
-  color: #00ff88;
-}
+.container { padding:15px; }
 
-.container { padding: 15px; }
+input, button { padding:8px; margin:5px 0; }
 
-input, button {
-  padding: 8px;
-  margin: 5px 0;
-}
-
-/* CHAT BOX */
 .chat-box {
-  height: 300px;
-  overflow-y: auto;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
+  height:300px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  padding:10px;
 }
 
-/* BUBBLE */
 .bubble {
-  max-width: 75%;
-  padding: 6px 10px;
-  margin: 4px 0;
-  border-radius: 10px;
-  font-size: 14px;
-  word-wrap: break-word;
+  max-width:75%;
+  padding:6px 10px;
+  margin:4px 0;
+  border-radius:10px;
+  font-size:14px;
+  word-wrap:break-word;
 }
 
-/* LIGHT BUBBLE */
-.light .me { background: #00aa55; color: white; }
-.light .other { background: #e5e5e5; color: black; }
+.me { align-self:flex-end; }
+.other { align-self:flex-start; }
 
-/* DARK BUBBLE */
-.dark .me { background: #00aa55; color: white; }
-.dark .other { background: #111; color: #0f0; }
+.light .me { background:#00aa55; color:white; }
+.light .other { background:#e5e5e5; color:black; }
 
-.me { align-self: flex-end; }
-.other { align-self: flex-start; }
+.dark .me { background:#00aa55; color:white; }
+.dark .other { background:#111; color:#0f0; }
 
-.typing {
-  font-size: 12px;
-  opacity: 0.7;
+.meta {
+  font-size:10px;
+  opacity:0.7;
+  text-align:right;
 }
 
-.room {
-  cursor: pointer;
-  padding: 5px;
-  border-bottom: 1px solid #888;
-}
+/* centang */
+.tick { margin-left:5px; }
+.tick.gray { color:gray; }
+.tick.blue { color:#00aaff; }
+
+.typing { font-size:12px; opacity:0.7; }
+
+.room { padding:5px; border-bottom:1px solid #888; cursor:pointer; }
 </style>
 </head>
 
@@ -77,33 +62,28 @@ input, button {
 <div class="container">
 
 <h2>GreenChat</h2>
-
 <button onclick="toggleMode()">Toggle Mode</button>
 
 <div id="login">
-  <input id="name" placeholder="Masukkan nama...">
-  <button onclick="saveName()">Masuk</button>
+<input id="name" placeholder="Nama">
+<button onclick="saveName()">Masuk</button>
 </div>
 
 <div id="lobby" style="display:none;">
-  <h3>Halo, <span id="username"></span></h3>
-
-  <input id="roomInput" placeholder="Nama room">
-  <button onclick="createRoom()">Buat / Join Room</button>
-
-  <h4>Room kamu:</h4>
-  <div id="roomList"></div>
+<h3>Halo, <span id="username"></span></h3>
+<input id="roomInput" placeholder="Room">
+<button onclick="createRoom()">Join</button>
+<div id="roomList"></div>
 </div>
 
 <div id="chat" style="display:none;">
-  <h3 id="roomTitle"></h3>
+<h3 id="roomTitle"></h3>
+<div id="chatBox" class="chat-box"></div>
+<div id="typingText" class="typing"></div>
 
-  <div class="chat-box" id="chatBox"></div>
-  <div class="typing" id="typingText"></div>
-
-  <input id="msg" placeholder="Ketik pesan..." oninput="typing()">
-  <button onclick="sendMsg()">Kirim</button>
-  <button onclick="back()">Kembali</button>
+<input id="msg" oninput="typing()" placeholder="Ketik...">
+<button onclick="sendMsg()">Kirim</button>
+<button onclick="back()">Back</button>
 </div>
 
 </div>
@@ -128,174 +108,169 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let username = localStorage.getItem("name");
-let currentRoom = "";
+let currentRoom="";
 let typingTimeout;
 
 // MODE
-function toggleMode() {
-  let body = document.body;
-  if (body.classList.contains("dark")) {
-    body.classList.remove("dark");
-    body.classList.add("light");
-    localStorage.setItem("mode", "light");
-  } else {
-    body.classList.remove("light");
-    body.classList.add("dark");
-    localStorage.setItem("mode", "dark");
-  }
+function toggleMode(){
+ let b=document.body;
+ let mode=b.classList.contains("dark")?"light":"dark";
+ b.className=mode;
+ localStorage.setItem("mode",mode);
 }
-
-// load mode
-let savedMode = localStorage.getItem("mode") || "dark";
-document.body.className = savedMode;
+document.body.className=localStorage.getItem("mode")||"dark";
 
 // LOGIN
-function saveName() {
-  const name = document.getElementById("name").value;
-  if (!name) return;
-
-  localStorage.setItem("name", name);
-  username = name;
-
-  Notification.requestPermission();
-  showLobby();
+function saveName(){
+ let n=document.getElementById("name").value;
+ if(!n)return;
+ localStorage.setItem("name",n);
+ username=n;
+ Notification.requestPermission();
+ showLobby();
 }
-
-function showLobby() {
-  document.getElementById("login").style.display = "none";
-  document.getElementById("lobby").style.display = "block";
-  document.getElementById("username").innerText = username;
-  loadRooms();
+function showLobby(){
+ document.getElementById("login").style.display="none";
+ document.getElementById("lobby").style.display="block";
+ document.getElementById("username").innerText=username;
+ loadRooms();
 }
 
 // ROOM
-function createRoom() {
-  const room = document.getElementById("roomInput").value;
-  if (!room) return;
-  joinRoom(room);
+function createRoom(){
+ let r=document.getElementById("roomInput").value;
+ if(!r)return;
+ joinRoom(r);
+}
+function joinRoom(r){
+ currentRoom=r;
+ let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
+ if(!rooms.includes(r)){
+  rooms.push(r);
+  localStorage.setItem("rooms",JSON.stringify(rooms));
+ }
+ document.getElementById("lobby").style.display="none";
+ document.getElementById("chat").style.display="block";
+ document.getElementById("roomTitle").innerText=r;
+ loadMessages();
+ listenTyping();
+}
+function loadRooms(){
+ let list=document.getElementById("roomList");
+ list.innerHTML="";
+ JSON.parse(localStorage.getItem("rooms")||"[]").forEach(r=>{
+  let d=document.createElement("div");
+  d.className="room";
+  d.innerText=r;
+  d.onclick=()=>joinRoom(r);
+  list.appendChild(d);
+ });
 }
 
-function joinRoom(room) {
-  currentRoom = room;
+// ADMIN
+function isAdmin(u){ return u==="evand"; }
 
-  let rooms = JSON.parse(localStorage.getItem("rooms") || "[]");
-  if (!rooms.includes(room)) {
-    rooms.push(room);
-    localStorage.setItem("rooms", JSON.stringify(rooms));
-  }
+// SEND
+function sendMsg(){
+ let msg=document.getElementById("msg").value;
+ if(!msg)return;
 
-  document.getElementById("lobby").style.display = "none";
-  document.getElementById("chat").style.display = "block";
-  document.getElementById("roomTitle").innerText = room;
+ handleCommand(msg);
 
-  loadMessages();
-  listenTyping();
-}
+ let id=db.ref("rooms/"+currentRoom+"/messages").push().key;
 
-function loadRooms() {
-  const list = document.getElementById("roomList");
-  list.innerHTML = "";
+ db.ref("rooms/"+currentRoom+"/messages/"+id).set({
+  name:username,
+  msg:msg,
+  time:Date.now(),
+  readBy:{}
+ });
 
-  let rooms = JSON.parse(localStorage.getItem("rooms") || "[]");
-
-  rooms.forEach(r => {
-    let div = document.createElement("div");
-    div.className = "room";
-    div.innerText = r;
-    div.onclick = () => joinRoom(r);
-    list.appendChild(div);
-  });
-}
-
-// ADMIN CHECK
-function isAdmin(user) {
-  return user === "evand";
-}
-
-// CHAT
-function sendMsg() {
-  const msg = document.getElementById("msg").value;
-  if (!msg) return;
-
-  handleCommand(msg);
-
-  db.ref("rooms/" + currentRoom + "/messages").push({
-    name: username,
-    msg: msg
-  });
-
-  document.getElementById("msg").value = "";
-  db.ref("rooms/" + currentRoom + "/typing/" + username).set(false);
+ document.getElementById("msg").value="";
+ db.ref("rooms/"+currentRoom+"/typing/"+username).set(false);
 }
 
 // COMMAND
-function handleCommand(msg) {
-  let cmd = msg.trim().toLowerCase();
-
-  if (cmd === "/clear") {
-    if (!isAdmin(username)) return alert("bukan admin");
-
-    db.ref("rooms/" + currentRoom + "/messages").remove();
-    alert("chat dibersihkan");
-  }
+function handleCommand(msg){
+ let c=msg.trim().toLowerCase();
+ if(c==="/clear"){
+  if(!isAdmin(username)) return alert("bukan admin");
+  db.ref("rooms/"+currentRoom+"/messages").remove();
+ }
 }
 
-// LOAD CHAT
-function loadMessages() {
-  const chatBox = document.getElementById("chatBox");
-  chatBox.innerHTML = "";
+// LOAD
+function loadMessages(){
+ let box=document.getElementById("chatBox");
+ box.innerHTML="";
 
-  db.ref("rooms/" + currentRoom + "/messages").off();
+ db.ref("rooms/"+currentRoom+"/messages").off();
 
-  db.ref("rooms/" + currentRoom + "/messages").on("child_added", data => {
-    let d = data.val();
+ db.ref("rooms/"+currentRoom+"/messages").on("child_added", snap=>{
+  let id=snap.key;
+  let d=snap.val();
 
-    let div = document.createElement("div");
-    div.className = "bubble " + (d.name === username ? "me" : "other");
-    div.innerText = d.name + ": " + d.msg;
+  // mark read
+  if(d.name!==username){
+   db.ref("rooms/"+currentRoom+"/messages/"+id+"/readBy/"+username).set(true);
+  }
 
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+  let div=document.createElement("div");
+  div.className="bubble "+(d.name===username?"me":"other");
 
-    if (document.hidden && d.name !== username) {
-      new Notification(d.name, { body: d.msg });
-    }
-  });
+  let date=new Date(d.time||Date.now());
+  let time=date.getHours()+":"+String(date.getMinutes()).padStart(2,"0");
+
+  let tick="";
+  if(d.name===username){
+    let readers=d.readBy?Object.keys(d.readBy).length:0;
+    tick = readers>0
+      ? '<span class="tick blue">✓</span>'
+      : '<span class="tick gray">✓</span>';
+  }
+
+  div.innerHTML = `
+    ${d.name}: ${d.msg}
+    <div class="meta">${time} ${tick}</div>
+  `;
+
+  box.appendChild(div);
+  box.scrollTop=box.scrollHeight;
+
+  // notif
+  if(document.hidden && d.name!==username){
+    new Notification(d.name,{body:d.msg});
+  }
+ });
 }
 
 // TYPING
-function typing() {
-  db.ref("rooms/" + currentRoom + "/typing/" + username).set(true);
-
-  clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(() => {
-    db.ref("rooms/" + currentRoom + "/typing/" + username).set(false);
-  }, 1500);
+function typing(){
+ db.ref("rooms/"+currentRoom+"/typing/"+username).set(true);
+ clearTimeout(typingTimeout);
+ typingTimeout=setTimeout(()=>{
+  db.ref("rooms/"+currentRoom+"/typing/"+username).set(false);
+ },1500);
 }
 
-function listenTyping() {
-  const typingText = document.getElementById("typingText");
-
-  db.ref("rooms/" + currentRoom + "/typing").on("value", snap => {
-    let data = snap.val();
-    if (!data) return typingText.innerText = "";
-
-    let usersTyping = Object.keys(data).filter(u => data[u] && u !== username);
-
-    typingText.innerText = usersTyping.length > 0
-      ? usersTyping.join(", ") + " sedang mengetik..."
-      : "";
-  });
+function listenTyping(){
+ let t=document.getElementById("typingText");
+ db.ref("rooms/"+currentRoom+"/typing").on("value",snap=>{
+  let d=snap.val();
+  if(!d) return t.innerText="";
+  let u=Object.keys(d).filter(x=>d[x]&&x!==username);
+  t.innerText=u.length?u.join(", ")+" sedang mengetik...":"";
+ });
 }
 
 // BACK
-function back() {
-  document.getElementById("chat").style.display = "none";
-  document.getElementById("lobby").style.display = "block";
+function back(){
+ document.getElementById("chat").style.display="none";
+ document.getElementById("lobby").style.display="block";
 }
 
 // AUTO LOGIN
-if (username) showLobby();
+if(username) showLobby();
 </script>
 
 </body>
