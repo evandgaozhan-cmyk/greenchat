@@ -135,12 +135,13 @@ function initFCM() {
 
 // ================= USER =================
 function saveName() {
-  Notification.requestPermission();
   const name = document.getElementById("name").value;
   if (!name) return;
 
   localStorage.setItem("name", name);
   username = name;
+
+  Notification.requestPermission();
 
   showLobby();
   initFCM(); // 🔔 penting: aktifkan notif saat login
