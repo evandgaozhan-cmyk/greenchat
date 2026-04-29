@@ -6,57 +6,54 @@
 
 <style>
 body { margin:0; font-family:Arial; }
-body.dark { background:#0a0a0a; color:#00ff88; }
+
 body.light { background:#fff; color:#008000; }
+body.dark { background:#0a0a0a; color:#00ff88; }
 
-.container { display:flex; height:100vh; }
+.container { padding:15px; }
 
-/* LEFT */
-.left {
-  width:65%;
-  padding:10px;
-}
+input, button { padding:8px; margin:5px 0; }
 
-/* RIGHT (DM LIST) */
-.right {
-  width:35%;
-  border-left:1px solid #888;
-  padding:10px;
-  overflow-y:auto;
-}
-
-.user {
-  padding:5px;
-  cursor:pointer;
-  border-bottom:1px solid #666;
-}
-
-/* CHAT */
 .chat-box {
-  height:250px;
+  height:300px;
   overflow-y:auto;
   display:flex;
   flex-direction:column;
+  padding:10px;
 }
 
 .bubble {
   max-width:75%;
-  padding:6px;
-  margin:4px;
+  padding:6px 10px;
+  margin:4px 0;
   border-radius:10px;
-  font-size:13px;
+  font-size:14px;
+  word-wrap:break-word;
 }
 
-.me { align-self:flex-end; background:#00aa55; color:white; }
-.other { align-self:flex-start; background:#111; color:#0f0; }
+.me { align-self:flex-end; }
+.other { align-self:flex-start; }
 
-.meta { font-size:10px; opacity:0.7; }
+.light .me { background:#00aa55; color:white; }
+.light .other { background:#e5e5e5; color:black; }
 
-/* typing */
-.typing { font-size:12px; }
+.dark .me { background:#00aa55; color:white; }
+.dark .other { background:#111; color:#0f0; }
 
-.online { color:#00ff88; }
-.offline { color:gray; }
+.meta {
+  font-size:10px;
+  opacity:0.7;
+  text-align:right;
+}
+
+/* centang */
+.tick { margin-left:5px; }
+.tick.gray { color:gray; }
+.tick.blue { color:#00aaff; }
+
+.typing { font-size:12px; opacity:0.7; }
+
+.room { padding:5px; border-bottom:1px solid #888; cursor:pointer; }
 </style>
 </head>
 
@@ -64,29 +61,29 @@ body.light { background:#fff; color:#008000; }
 
 <div class="container">
 
-<div class="left">
+<h2>GreenChat</h2>
+<button onclick="toggleMode()">Toggle Mode</button>
 
 <div id="login">
-<input id="name" placeholder="nama">
-<button onclick="saveName()">masuk</button>
+<input id="name" placeholder="Nama">
+<button onclick="saveName()">Masuk</button>
 </div>
 
-<div id="app" style="display:none;">
+<div id="lobby" style="display:none;">
+<h3>Halo, <span id="username"></span></h3>
+<input id="roomInput" placeholder="Room">
+<button onclick="createRoom()">Join</button>
+<div id="roomList"></div>
+</div>
 
-<h3 id="chatTitle">Group</h3>
-
+<div id="chat" style="display:none;">
+<h3 id="roomTitle"></h3>
 <div id="chatBox" class="chat-box"></div>
-<div id="typing" class="typing"></div>
+<div id="typingText" class="typing"></div>
 
-<input id="msg" oninput="typing()" placeholder="ketik...">
-<button onclick="sendMsg()">kirim</button>
-
-</div>
-</div>
-
-<div class="right">
-<h3>DM</h3>
-<div id="userList"></div>
+<input id="msg" oninput="typing()" placeholder="Ketik...">
+<button onclick="sendMsg()">Kirim</button>
+<button onclick="back()">Back</button>
 </div>
 
 </div>
@@ -95,23 +92,27 @@ body.light { background:#fff; color:#008000; }
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAnDdfNeNhS5oYYYNkESOZHCYbwe3boY2Q",
-  authDomain: "morse-f36e5.firebaseapp.com",
-  databaseURL: "https://morse-f36e5-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "morse-f36e5",
-  storageBucket: "morse-f36e5.firebasestorage.app",
-  messagingSenderId: "41752377914",
-  appId: "1:41752377914:web:881b1c19c011d6fea0d303",
-  measurementId: "G-RLTTLG36SS"
+ apiKey:"***",
+ authDomain:"morse-f36e5.firebaseapp.com",
+ databaseURL:"https://morse-f36e5-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
-firebase.initializeApp(config);
-const db=firebase.database();
 
-let username=localStorage.getItem("name");
-let currentChat="group";
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let username = localStorage.getItem("name");
+let currentRoom="";
 let typingTimeout;
+
+// MODE
+function toggleMode(){
+ let b=document.body;
+ let mode=b.classList.contains("dark")?"light":"dark";
+ b.className=mode;
+ localStorage.setItem("mode",mode);
+}
+document.body.className=localStorage.getItem("mode")||"dark";
 
 // LOGIN
 function saveName(){
@@ -119,94 +120,118 @@ function saveName(){
  if(!n)return;
  localStorage.setItem("name",n);
  username=n;
- startApp();
+ Notification.requestPermission();
+ showLobby();
 }
-
-function startApp(){
+function showLobby(){
  document.getElementById("login").style.display="none";
- document.getElementById("app").style.display="block";
-
- setOnline();
- loadUsers();
- loadMessages();
+ document.getElementById("lobby").style.display="block";
+ document.getElementById("username").innerText=username;
+ loadRooms();
 }
 
-// ONLINE STATUS
-function setOnline(){
- db.ref("status/"+username).set({online:true,last:Date.now()});
- window.addEventListener("beforeunload",()=>{
-  db.ref("status/"+username).set({online:false,last:Date.now()});
+// ROOM
+function createRoom(){
+ let r=document.getElementById("roomInput").value;
+ if(!r)return;
+ joinRoom(r);
+}
+function joinRoom(r){
+ currentRoom=r;
+ let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
+ if(!rooms.includes(r)){
+  rooms.push(r);
+  localStorage.setItem("rooms",JSON.stringify(rooms));
+ }
+ document.getElementById("lobby").style.display="none";
+ document.getElementById("chat").style.display="block";
+ document.getElementById("roomTitle").innerText=r;
+ loadMessages();
+ listenTyping();
+}
+function loadRooms(){
+ let list=document.getElementById("roomList");
+ list.innerHTML="";
+ JSON.parse(localStorage.getItem("rooms")||"[]").forEach(r=>{
+  let d=document.createElement("div");
+  d.className="room";
+  d.innerText=r;
+  d.onclick=()=>joinRoom(r);
+  list.appendChild(d);
  });
 }
 
-// LOAD USERS
-function loadUsers(){
- db.ref("status").on("value",snap=>{
-  let list=document.getElementById("userList");
-  list.innerHTML="";
-  let data=snap.val()||{};
-  Object.keys(data).forEach(u=>{
-    if(u===username)return;
-
-    let div=document.createElement("div");
-    div.className="user";
-
-    let s=data[u];
-    let status=s.online
-      ? '<span class="online">online</span>'
-      : 'last seen '+new Date(s.last).toLocaleTimeString();
-
-    div.innerHTML=u+"<br>"+status;
-    div.onclick=()=>openDM(u);
-
-    list.appendChild(div);
-  });
- });
-}
-
-// OPEN DM
-function openDM(user){
- currentChat="dm_"+[username,user].sort().join("_");
- document.getElementById("chatTitle").innerText="DM: "+user;
- loadMessages();
-}
+// ADMIN
+function isAdmin(u){ return u==="evand"; }
 
 // SEND
 function sendMsg(){
  let msg=document.getElementById("msg").value;
  if(!msg)return;
 
- db.ref("chats/"+currentChat).push({
+ handleCommand(msg);
+
+ let id=db.ref("rooms/"+currentRoom+"/messages").push().key;
+
+ db.ref("rooms/"+currentRoom+"/messages/"+id).set({
   name:username,
   msg:msg,
-  time:Date.now()
+  time:Date.now(),
+  readBy:{}
  });
 
  document.getElementById("msg").value="";
+ db.ref("rooms/"+currentRoom+"/typing/"+username).set(false);
 }
 
-// LOAD CHAT
+// COMMAND
+function handleCommand(msg){
+ let c=msg.trim().toLowerCase();
+ if(c==="/clear"){
+  if(!isAdmin(username)) return alert("bukan admin");
+  db.ref("rooms/"+currentRoom+"/messages").remove();
+ }
+}
+
+// LOAD
 function loadMessages(){
  let box=document.getElementById("chatBox");
  box.innerHTML="";
 
- db.ref("chats/"+currentChat).off();
+ db.ref("rooms/"+currentRoom+"/messages").off();
 
- db.ref("chats/"+currentChat).on("child_added",snap=>{
+ db.ref("rooms/"+currentRoom+"/messages").on("child_added", snap=>{
+  let id=snap.key;
   let d=snap.val();
+
+  // mark read
+  if(d.name!==username){
+   db.ref("rooms/"+currentRoom+"/messages/"+id+"/readBy/"+username).set(true);
+  }
 
   let div=document.createElement("div");
   div.className="bubble "+(d.name===username?"me":"other");
 
-  let t=new Date(d.time);
-  let time=t.getHours()+":"+String(t.getMinutes()).padStart(2,"0");
+  let date=new Date(d.time||Date.now());
+  let time=date.getHours()+":"+String(date.getMinutes()).padStart(2,"0");
 
-  div.innerHTML=d.name+": "+d.msg+
-    "<div class='meta'>"+time+"</div>";
+  let tick="";
+  if(d.name===username){
+    let readers=d.readBy?Object.keys(d.readBy).length:0;
+    tick = readers>0
+      ? '<span class="tick blue">✓</span>'
+      : '<span class="tick gray">✓</span>';
+  }
+
+  div.innerHTML = `
+    ${d.name}: ${d.msg}
+    <div class="meta">${time} ${tick}</div>
+  `;
 
   box.appendChild(div);
   box.scrollTop=box.scrollHeight;
 
+  // notif
   if(document.hidden && d.name!==username){
     new Notification(d.name,{body:d.msg});
   }
@@ -215,15 +240,31 @@ function loadMessages(){
 
 // TYPING
 function typing(){
- db.ref("typing/"+currentChat+"/"+username).set(true);
+ db.ref("rooms/"+currentRoom+"/typing/"+username).set(true);
  clearTimeout(typingTimeout);
  typingTimeout=setTimeout(()=>{
-  db.ref("typing/"+currentChat+"/"+username).set(false);
+  db.ref("rooms/"+currentRoom+"/typing/"+username).set(false);
  },1500);
 }
 
+function listenTyping(){
+ let t=document.getElementById("typingText");
+ db.ref("rooms/"+currentRoom+"/typing").on("value",snap=>{
+  let d=snap.val();
+  if(!d) return t.innerText="";
+  let u=Object.keys(d).filter(x=>d[x]&&x!==username);
+  t.innerText=u.length?u.join(", ")+" sedang mengetik...":"";
+ });
+}
+
+// BACK
+function back(){
+ document.getElementById("chat").style.display="none";
+ document.getElementById("lobby").style.display="block";
+}
+
 // AUTO LOGIN
-if(username) startApp();
+if(username) showLobby();
 </script>
 
 </body>
