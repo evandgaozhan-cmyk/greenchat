@@ -5,31 +5,86 @@
 <title>GreenChat</title>
 
 <style>
-body { margin:0; font-family:Arial; }
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #0a0a0a;
+  color: #00ff88;
 
-body.light { background:#fff; color:#008000; }
-body.dark { background:#0a0a0a; color:#00ff88; }
+  display: flex;
+  justify-content: center;
+}
 
-.container { padding:15px; }
+/* CONTAINER UTAMA */
+.container {
+  width: 100%;
+  max-width: 420px; /* 🔥 ini bikin nggak kegedean */
+  padding: 15px;
+}
 
-input, button { padding:8px; margin:5px 0; }
+/* INPUT & BUTTON */
+input, button {
+  padding: 10px;
+  margin: 5px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+}
 
+input {
+  width: 100%;
+  background: #111;
+  color: #0f0;
+}
+
+button {
+  width: 100%;
+  background: #00aa55;
+  color: black;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #00ff88;
+}
+
+/* CHAT BOX */
 .chat-box {
-  height:300px;
-  overflow-y:auto;
-  display:flex;
-  flex-direction:column;
-  padding:10px;
+  height: 300px;
+  overflow-y: auto;
+  background: #111;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 10px;
 }
 
-.bubble {
-  max-width:75%;
-  padding:6px 10px;
-  margin:4px 0;
-  border-radius:10px;
-  font-size:14px;
-  word-wrap:break-word;
+/* PESAN */
+.msg {
+  margin: 6px 0;
+  font-size: 14px;
+  word-wrap: break-word;
 }
+
+/* ROOM LIST */
+.room {
+  cursor: pointer;
+  padding: 8px;
+  border-bottom: 1px solid #333;
+  font-size: 14px;
+}
+
+/* MOBILE FIX */
+@media (max-width: 500px) {
+  .container {
+    max-width: 100%;
+    padding: 10px;
+  }
+
+  .chat-box {
+    height: 250px;
+  }
+}
+</style>
 
 .me { align-self:flex-end; }
 .other { align-self:flex-start; }
