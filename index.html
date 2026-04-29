@@ -135,6 +135,7 @@ function initFCM() {
 
 // ================= USER =================
 function saveName() {
+  Notification.requestPermission();
   const name = document.getElementById("name").value;
   if (!name) return;
 
@@ -261,10 +262,11 @@ function loadMessages() {
     div.innerText = d.name + ": " + d.msg;
 
     chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    if (document.hidden && d.name !== username) {
+  new Notification(d.name, {
+    body: d.msg
   });
-}
-
+    }
 // ================= BACK =================
 function back() {
   document.getElementById("chat").style.display = "none";
