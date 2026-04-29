@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>GreenChat</title>
 
 <style>
@@ -14,7 +13,6 @@ body {
   justify-content:center;
 }
 
-/* MODE */
 body.dark { background:#0a0a0a; color:#00ff88; }
 body.light { background:#fff; color:#008000; }
 
@@ -24,7 +22,6 @@ body.light { background:#fff; color:#008000; }
   padding:15px;
 }
 
-/* INPUT */
 input, button {
   width:100%;
   padding:10px;
@@ -34,12 +31,9 @@ input, button {
 }
 
 body.dark input { background:#111; color:#0f0; }
-body.light input { background:#eee; color:#000; }
+body.light input { background:#eee; }
 
-button {
-  background:#00aa55;
-  color:black;
-}
+button { background:#00aa55; color:black; }
 
 /* CHAT */
 .chat-box {
@@ -52,43 +46,20 @@ button {
 }
 
 body.dark .chat-box { background:#111; }
-body.light .chat-box { background:#f0f0f0; }
+body.light .chat-box { background:#eee; }
 
-/* BUBBLE */
 .bubble {
   max-width:75%;
   padding:8px;
   margin:4px 0;
   border-radius:10px;
-  font-size:14px;
-  word-wrap:break-word;
 }
 
-.me {
-  align-self:flex-end;
-  background:#00aa55;
-  color:white;
-}
+.me { align-self:flex-end; background:#00aa55; color:white; }
+.other { align-self:flex-start; background:#222; color:#0f0; }
 
-.other {
-  align-self:flex-start;
-  background:#222;
-  color:#0f0;
-}
+.meta { font-size:10px; opacity:0.7; text-align:right; }
 
-body.light .other {
-  background:#ddd;
-  color:#000;
-}
-
-/* META */
-.meta {
-  font-size:10px;
-  opacity:0.7;
-  text-align:right;
-}
-
-/* ROOM */
 .room {
   padding:6px;
   border-bottom:1px solid #888;
@@ -116,6 +87,8 @@ body.light .other {
 <button onclick="joinRoom()">Join</button>
 
 <div id="roomList"></div>
+
+<button onclick="logout()">Logout</button>
 </div>
 
 <div id="chat" style="display:none;">
@@ -148,123 +121,134 @@ const firebaseConfig = {
 firebase.initializeApp(config);
 const db=firebase.database();
 
-let username=localStorage.getItem("name");
+let username="";
 let currentRoom="";
 
 // LOGIN
 function saveName(){
-  let n=document.getElementById("name").value;
-  if(!n)return;
-  localStorage.setItem("name",n);
-  username=n;
-  showLobby();
+ let n=document.getElementById("name").value.trim();
+ if(!n){
+   alert("isi nama dulu");
+   return;
+ }
+ localStorage.setItem("name",n);
+ location.reload();
 }
+
+// AUTO LOGIN (FIX)
+window.onload=function(){
+ let saved=localStorage.getItem("name");
+ if(saved){
+   username=saved;
+   showLobby();
+ }
+};
 
 // LOBBY
 function showLobby(){
-  document.getElementById("login").style.display="none";
-  document.getElementById("lobby").style.display="block";
-  document.getElementById("username").innerText=username;
-  loadRooms();
+ document.getElementById("login").style.display="none";
+ document.getElementById("lobby").style.display="block";
+ document.getElementById("username").innerText=username;
+ loadRooms();
 }
 
+// LOGOUT
+function logout(){
+ localStorage.removeItem("name");
+ location.reload();
+}
+
+// ROOM
 function joinRoom(){
-  let room=document.getElementById("roomInput").value;
-  if(!room)return;
-  currentRoom=room;
+ let room=document.getElementById("roomInput").value;
+ if(!room)return;
 
-  let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
-  if(!rooms.includes(room)){
-    rooms.push(room);
-    localStorage.setItem("rooms",JSON.stringify(rooms));
-  }
+ currentRoom=room;
 
-  document.getElementById("lobby").style.display="none";
-  document.getElementById("chat").style.display="block";
-  document.getElementById("roomTitle").innerText=room;
+ let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
+ if(!rooms.includes(room)){
+   rooms.push(room);
+   localStorage.setItem("rooms",JSON.stringify(rooms));
+ }
 
-  loadMessages();
+ document.getElementById("lobby").style.display="none";
+ document.getElementById("chat").style.display="block";
+ document.getElementById("roomTitle").innerText=room;
+
+ loadMessages();
 }
 
 function loadRooms(){
-  let list=document.getElementById("roomList");
-  list.innerHTML="";
+ let list=document.getElementById("roomList");
+ list.innerHTML="";
 
-  let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
+ let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
 
-  rooms.forEach(r=>{
-    let div=document.createElement("div");
-    div.className="room";
-    div.innerText=r;
-    div.onclick=()=>{
-      document.getElementById("roomInput").value=r;
-      joinRoom();
-    };
-    list.appendChild(div);
-  });
+ rooms.forEach(r=>{
+   let div=document.createElement("div");
+   div.className="room";
+   div.innerText=r;
+   div.onclick=()=>{
+     document.getElementById("roomInput").value=r;
+     joinRoom();
+   };
+   list.appendChild(div);
+ });
 }
 
 // CHAT
 function sendMsg(){
-  let msg=document.getElementById("msg").value;
-  if(!msg)return;
+ let msg=document.getElementById("msg").value;
+ if(!msg)return;
 
-  // COMMAND
-  if(msg==="/clear"){
-    db.ref("rooms/"+currentRoom).remove();
-    return;
-  }
+ if(msg==="/clear"){
+   db.ref("rooms/"+currentRoom).remove();
+   return;
+ }
 
-  db.ref("rooms/"+currentRoom).push({
-    name:username,
-    msg:msg,
-    time:Date.now()
-  });
+ db.ref("rooms/"+currentRoom).push({
+   name:username,
+   msg:msg,
+   time:Date.now()
+ });
 
-  document.getElementById("msg").value="";
+ document.getElementById("msg").value="";
 }
 
 function loadMessages(){
-  let box=document.getElementById("chatBox");
-  box.innerHTML="";
+ let box=document.getElementById("chatBox");
+ box.innerHTML="";
 
-  db.ref("rooms/"+currentRoom).off();
+ db.ref("rooms/"+currentRoom).off();
 
-  db.ref("rooms/"+currentRoom).on("child_added",snap=>{
-    let d=snap.val();
+ db.ref("rooms/"+currentRoom).on("child_added",snap=>{
+   let d=snap.val();
+   if(!d.msg)return;
 
-    if(!d.msg)return;
+   let div=document.createElement("div");
+   div.className="bubble "+(d.name===username?"me":"other");
 
-    let div=document.createElement("div");
-    div.className="bubble "+(d.name===username?"me":"other");
+   let t=new Date(d.time);
+   let time=t.getHours()+":"+String(t.getMinutes()).padStart(2,"0");
 
-    let t=new Date(d.time);
-    let time=t.getHours()+":"+String(t.getMinutes()).padStart(2,"0");
+   div.innerHTML="<b>"+d.name+"</b><br>"+d.msg+"<div class='meta'>"+time+"</div>";
 
-    div.innerHTML=
-      "<b>"+d.name+"</b><br>"+
-      d.msg+
-      "<div class='meta'>"+time+"</div>";
-
-    box.appendChild(div);
-    box.scrollTop=box.scrollHeight;
-  });
+   box.appendChild(div);
+   box.scrollTop=box.scrollHeight;
+ });
 }
 
 // BACK
 function back(){
-  document.getElementById("chat").style.display="none";
-  document.getElementById("lobby").style.display="block";
+ document.getElementById("chat").style.display="none";
+ document.getElementById("lobby").style.display="block";
 }
 
 // MODE
 function toggleMode(){
-  document.body.classList.toggle("light");
-  document.body.classList.toggle("dark");
+ document.body.classList.toggle("light");
+ document.body.classList.toggle("dark");
 }
-
-// AUTO LOGIN
-if(username) showLobby();
 </script>
 
 </body>
