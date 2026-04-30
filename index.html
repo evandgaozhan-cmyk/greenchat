@@ -6,11 +6,30 @@
 <title>GreenChat</title>
 
 <style>
-body { font-family:Arial; margin:0; background:#e5ddd5; }
+body { margin:0; font-family:Arial; background:#e5ddd5; }
+body.dark { background:#0a0a0a; color:#00ff88; }
+
 .container { max-width:420px; margin:auto; }
 
+/* HEADER */
+.header {
+  background:#075e54;
+  color:white;
+  padding:10px;
+  display:flex;
+  justify-content:space-between;
+}
+
+/* ROOM */
+.room {
+  padding:10px;
+  border-bottom:1px solid #ccc;
+  cursor:pointer;
+}
+
+/* CHAT */
 .chat-box {
-  height:60vh;
+  height:65vh;
   overflow-y:auto;
   padding:10px;
   display:flex;
@@ -21,13 +40,36 @@ body { font-family:Arial; margin:0; background:#e5ddd5; }
   max-width:75%;
   padding:10px;
   margin:5px;
-  border-radius:10px;
+  border-radius:12px;
 }
 
 .me { align-self:flex-end; background:#dcf8c6; }
 .other { align-self:flex-start; background:white; }
 
 .meta { font-size:10px; text-align:right; }
+
+/* INPUT */
+.input-area {
+  display:flex;
+  padding:10px;
+  background:white;
+}
+.input-area input { flex:1; padding:10px; }
+
+/* SETTINGS */
+#settings {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:#0008;
+  display:none;
+}
+.box {
+  background:white;
+  padding:20px;
+  margin:50px auto;
+  width:90%;
+}
 </style>
 </head>
 
@@ -35,28 +77,65 @@ body { font-family:Arial; margin:0; background:#e5ddd5; }
 
 <div class="container">
 
+<div class="header">
+  <span>GreenChat</span>
+  <button onclick="openSettings()">⚙</button>
+</div>
+
+<!-- LOGIN -->
 <div id="login">
 <input id="name" placeholder="Nama...">
 <button onclick="login()">Masuk</button>
 </div>
 
+<!-- LOBBY -->
 <div id="lobby" style="display:none;">
-<h3 id="user"></h3>
-<input id="room" placeholder="Room">
-<button onclick="join()">Join</button>
+<h3>Halo, <span id="username"></span></h3>
+
+<input id="roomInput" placeholder="Room">
+<button onclick="joinRoom()">Join</button>
+
+<div id="roomList"></div>
+
+<button onclick="logout()">Logout</button>
 </div>
 
+<!-- CHAT -->
 <div id="chat" style="display:none;">
 <h3 id="roomTitle"></h3>
+
 <div id="chatBox" class="chat-box"></div>
 
-<input id="msg">
-<button onclick="send()">Kirim</button>
+<div class="input-area">
+<input id="msg" placeholder="Ketik...">
+<button onclick="sendMsg()">➤</button>
+</div>
+
 <button onclick="back()">Back</button>
 </div>
 
 </div>
 
+<!-- SETTINGS -->
+<div id="settings">
+  <div class="box">
+    <h3>Settings</h3>
+    Nama:
+    <input id="setName"><br><br>
+
+    <label>
+      <input type="checkbox" id="privacy">
+      Privacy Read
+    </label><br><br>
+
+    <button onclick="toggleMode()">Toggle Dark/Light</button><br><br>
+
+    <button onclick="saveSettings()">Save</button>
+    <button onclick="closeSettings()">Close</button>
+  </div>
+</div>
+
+<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
@@ -73,13 +152,24 @@ const firebaseConfig = {
   measurementId: "G-RLTTLG36SS"
 };
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const db=firebase.database();
 
 let username="";
-let room="";
-let isAdmin=false;
+let currentRoom="";
+let privacy=false;
 let admins={};
 let locked=false;
+
+/* LOAD */
+window.onload=function(){
+ username=localStorage.getItem("name")||"";
+ privacy=localStorage.getItem("privacy")==="true";
+
+ document.body.className=localStorage.getItem("theme")||"";
+
+ if(username) showLobby();
+ loadRooms();
+};
 
 /* LOGIN */
 function login(){
@@ -92,19 +182,35 @@ function login(){
    } else {
      db.ref("users/"+n).set(true);
      username=n;
-     document.getElementById("login").style.display="none";
-     document.getElementById("lobby").style.display="block";
-     document.getElementById("user").innerText="Halo "+n;
+     localStorage.setItem("name",n);
+     showLobby();
    }
  });
 }
 
-/* JOIN */
-function join(){
- room=document.getElementById("room").value;
+/* LOBBY */
+function showLobby(){
+ document.getElementById("login").style.display="none";
+ document.getElementById("lobby").style.display="block";
+ document.getElementById("username").innerText=username;
+}
+
+/* ROOM */
+function joinRoom(){
+ let room=document.getElementById("roomInput").value;
  if(!room)return;
 
- // init admin list
+ currentRoom=room;
+
+ // simpan room local
+ let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
+ if(!rooms.includes(room)){
+   rooms.push(room);
+   localStorage.setItem("rooms",JSON.stringify(rooms));
+ }
+ loadRooms();
+
+ // init admin
  db.ref("rooms/"+room+"/admins").once("value",snap=>{
    if(!snap.exists()){
      db.ref("rooms/"+room+"/admins/"+username).set(true);
@@ -113,7 +219,6 @@ function join(){
 
  db.ref("rooms/"+room+"/admins").on("value",snap=>{
    admins=snap.val()||{};
-   isAdmin = admins[username] || username==="admin";
  });
 
  db.ref("rooms/"+room+"/lock").on("value",s=>{
@@ -124,13 +229,34 @@ function join(){
  document.getElementById("chat").style.display="block";
  document.getElementById("roomTitle").innerText=room;
 
- load();
+ loadMessages();
+}
+
+/* ROOM LIST */
+function loadRooms(){
+ let list=document.getElementById("roomList");
+ list.innerHTML="";
+
+ let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
+
+ rooms.forEach(r=>{
+   let div=document.createElement("div");
+   div.className="room";
+   div.innerText=r;
+   div.onclick=()=>{
+     document.getElementById("roomInput").value=r;
+     joinRoom();
+   };
+   list.appendChild(div);
+ });
 }
 
 /* SEND */
-function send(){
- let text=document.getElementById("msg").value;
- if(!text)return;
+function sendMsg(){
+ let msg=document.getElementById("msg").value;
+ if(!msg)return;
+
+ let isAdmin = admins[username] || username==="admin";
 
  if(locked && !isAdmin){
    alert("room dikunci!");
@@ -138,22 +264,23 @@ function send(){
  }
 
  // cek kick
- db.ref("rooms/"+room+"/kick/"+username).once("value",snap=>{
+ db.ref("rooms/"+currentRoom+"/kick/"+username).once("value",snap=>{
    let until=snap.val();
    if(until && Date.now()<until){
      alert("kamu di-kick sementara!");
      return;
    }
 
-   if(text.startsWith("/")){
-     command(text);
+   if(msg.startsWith("/")){
+     command(msg);
      return;
    }
 
-   db.ref("rooms/"+room+"/msg").push({
+   db.ref("rooms/"+currentRoom+"/msg").push({
      name:username,
-     text:text,
-     time:Date.now()
+     msg:msg,
+     time:Date.now(),
+     read:false
    });
 
    document.getElementById("msg").value="";
@@ -163,6 +290,7 @@ function send(){
 /* COMMAND */
 function command(cmd){
  let p=cmd.split(" ");
+ let isAdmin = admins[username] || username==="admin";
 
  if(!isAdmin){
    alert("bukan admin!");
@@ -170,59 +298,89 @@ function command(cmd){
  }
 
  if(p[0]==="/add"){
-   db.ref("rooms/"+room+"/admins/"+p[1]).set(true);
+   db.ref("rooms/"+currentRoom+"/admins/"+p[1]).set(true);
  }
 
  if(p[0]==="/clear"){
-   db.ref("rooms/"+room+"/msg").remove();
+   db.ref("rooms/"+currentRoom+"/msg").remove();
  }
 
  if(p[0]==="/lock"){
-   db.ref("rooms/"+room+"/lock").set(true);
+   db.ref("rooms/"+currentRoom+"/lock").set(true);
  }
 
  if(p[0]==="/kick"){
-   let name=p[1];
    let sec=parseInt(p[2])||10;
-   let until=Date.now()+sec*1000;
-
-   db.ref("rooms/"+room+"/kick/"+name).set(until);
+   db.ref("rooms/"+currentRoom+"/kick/"+p[1]).set(Date.now()+sec*1000);
  }
 }
 
-/* LOAD */
-function load(){
+/* LOAD CHAT */
+function loadMessages(){
  let box=document.getElementById("chatBox");
  box.innerHTML="";
+ db.ref("rooms/"+currentRoom+"/msg").off();
 
- db.ref("rooms/"+room+"/msg").off();
-
- db.ref("rooms/"+room+"/msg").on("child_added",snap=>{
+ db.ref("rooms/"+currentRoom+"/msg").on("child_added",snap=>{
+   let key=snap.key;
    let d=snap.val();
+
+   if(!privacy && d.name!==username){
+     db.ref("rooms/"+currentRoom+"/msg/"+key+"/read").set(true);
+   }
 
    let div=document.createElement("div");
    div.className="bubble "+(d.name===username?"me":"other");
 
    let name=d.name;
-   if(admins[d.name] || d.name==="admin"){
-     name+=" (admin)";
-   }
+   if(admins[d.name] || d.name==="admin") name+=" (admin)";
 
    let time=new Date(d.time).toLocaleTimeString().slice(0,5);
+   let tickColor = d.read ? "#00aaff" : "#888";
 
    div.innerHTML=
-   "<b>"+name+"</b><br>"+d.text+
-   "<div class='meta'>"+time+"</div>";
+   "<b>"+name+"</b><br>"+d.msg+
+   "<div class='meta'>"+time+" <span style='color:"+tickColor+"'>✔</span></div>";
 
    box.appendChild(div);
    box.scrollTop=box.scrollHeight;
  });
 }
 
-/* BACK */
+/* SETTINGS */
+function openSettings(){
+ document.getElementById("settings").style.display="block";
+ document.getElementById("setName").value=username;
+ document.getElementById("privacy").checked=privacy;
+}
+function closeSettings(){
+ document.getElementById("settings").style.display="none";
+}
+function saveSettings(){
+ username=document.getElementById("setName").value;
+ privacy=document.getElementById("privacy").checked;
+
+ localStorage.setItem("name",username);
+ localStorage.setItem("privacy",privacy);
+
+ closeSettings();
+}
+
+/* MODE */
+function toggleMode(){
+ let mode=document.body.className==="dark"?"":"dark";
+ document.body.className=mode;
+ localStorage.setItem("theme",mode);
+}
+
+/* NAV */
 function back(){
  document.getElementById("chat").style.display="none";
  document.getElementById("lobby").style.display="block";
+}
+function logout(){
+ localStorage.removeItem("name");
+ location.reload();
 }
 </script>
 
