@@ -8,20 +8,22 @@
 <style>
 body {
   margin:0;
-  font-family:Arial;
+  font-family: Arial;
+  background:#e5ddd5;
   display:flex;
   justify-content:center;
 }
 
 body.dark { background:#0a0a0a; color:#00ff88; }
-body.light { background:#fff; color:#008000; }
+body.light { background:#e5ddd5; color:#000; }
 
 .container {
   width:100%;
   max-width:420px;
-  padding:15px;
+  padding:10px;
 }
 
+/* INPUT */
 input, button {
   width:100%;
   padding:10px;
@@ -30,58 +32,93 @@ input, button {
   border-radius:8px;
 }
 
-body.dark input { background:#111; color:#0f0; }
-body.light input { background:#eee; }
+/* BUTTON */
+button {
+  background:#00aa55;
+  color:white;
+}
 
-button { background:#00aa55; color:black; }
-
-/* CHAT */
+/* CHAT BOX */
 .chat-box {
-  height:300px;
+  height:350px;
   overflow-y:auto;
   padding:10px;
   border-radius:10px;
   display:flex;
   flex-direction:column;
+  background:#e5ddd5;
 }
 
-body.dark .chat-box { background:#111; }
-body.light .chat-box { background:#eee; }
-
+/* BUBBLE */
 .bubble {
   max-width:75%;
-  padding:8px;
-  margin:4px 0;
-  border-radius:10px;
+  padding:10px;
+  margin:5px 0;
+  border-radius:12px;
+  word-wrap:break-word;
+  font-size:14px;
 }
 
-.me { align-self:flex-end; background:#00aa55; color:white; }
-.other { align-self:flex-start; background:#222; color:#0f0; }
+.me {
+  align-self:flex-end;
+  background:#dcf8c6;
+  color:#000;
+  border-bottom-right-radius:4px;
+}
 
-.meta { font-size:10px; opacity:0.7; text-align:right; }
+.other {
+  align-self:flex-start;
+  background:#fff;
+  color:#000;
+  border-bottom-left-radius:4px;
+}
 
+/* META */
+.meta {
+  font-size:10px;
+  opacity:0.7;
+  text-align:right;
+}
+
+/* ROOM */
 .room {
   padding:6px;
-  border-bottom:1px solid #888;
+  border-bottom:1px solid #aaa;
   cursor:pointer;
+}
+
+/* TOP BAR */
+.topbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.smallbtn {
+  width:auto;
+  padding:5px 10px;
+  font-size:12px;
 }
 </style>
 </head>
 
-<body class="dark">
+<body>
 
 <div class="container">
 
-<h2>GreenChat</h2>
-<button onclick="toggleMode()">Toggle Mode</button>
+<div class="topbar">
+  <h3>GreenChat</h3>
+  <button class="smallbtn" onclick="openSettings()">⚙</button>
+</div>
 
+<!-- LOGIN -->
 <div id="login">
 <input id="name" placeholder="Nama...">
 <button onclick="saveName()">Masuk</button>
 </div>
 
+<!-- LOBBY -->
 <div id="lobby" style="display:none;">
-<h3>Halo, <span id="username"></span></h3>
+<h4>Halo, <span id="username"></span></h4>
 
 <input id="roomInput" placeholder="Room">
 <button onclick="joinRoom()">Join</button>
@@ -91,8 +128,9 @@ body.light .chat-box { background:#eee; }
 <button onclick="logout()">Logout</button>
 </div>
 
+<!-- CHAT -->
 <div id="chat" style="display:none;">
-<h3 id="roomTitle"></h3>
+<h4 id="roomTitle"></h4>
 
 <div id="chatBox" class="chat-box"></div>
 
@@ -103,11 +141,11 @@ body.light .chat-box { background:#eee; }
 
 </div>
 
+<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
 <script>
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAnDdfNeNhS5oYYYNkESOZHCYbwe3boY2Q",
   authDomain: "morse-f36e5.firebaseapp.com",
@@ -115,27 +153,26 @@ const firebaseConfig = {
   projectId: "morse-f36e5",
   storageBucket: "morse-f36e5.firebasestorage.app",
   messagingSenderId: "41752377914",
-  appId: "1:41752377914:web:881b1c19c011d6fea0d303",
-  measurementId: "G-RLTTLG36SS"
+  appId: "1:41752377914:web:881b1c19c011d6fea0d303"
 };
+
 firebase.initializeApp(firebaseConfig);
-const db=firebase.database();
+const db = firebase.database();
 
 let username="";
 let currentRoom="";
 
-// LOGIN
+/* LOGIN */
 function saveName(){
  let n=document.getElementById("name").value.trim();
- if(!n){
-   alert("isi nama dulu");
-   return;
- }
+ if(!n)return alert("isi nama dulu");
+
  localStorage.setItem("name",n);
- location.reload();
+ username=n;
+ showLobby();
 }
 
-// AUTO LOGIN (FIX)
+/* AUTO LOGIN */
 window.onload=function(){
  let saved=localStorage.getItem("name");
  if(saved){
@@ -144,7 +181,7 @@ window.onload=function(){
  }
 };
 
-// LOBBY
+/* LOBBY */
 function showLobby(){
  document.getElementById("login").style.display="none";
  document.getElementById("lobby").style.display="block";
@@ -152,13 +189,13 @@ function showLobby(){
  loadRooms();
 }
 
-// LOGOUT
+/* LOGOUT */
 function logout(){
  localStorage.removeItem("name");
  location.reload();
 }
 
-// ROOM
+/* ROOM */
 function joinRoom(){
  let room=document.getElementById("roomInput").value;
  if(!room)return;
@@ -178,6 +215,7 @@ function joinRoom(){
  loadMessages();
 }
 
+/* ROOMS LIST */
 function loadRooms(){
  let list=document.getElementById("roomList");
  list.innerHTML="";
@@ -196,25 +234,22 @@ function loadRooms(){
  });
 }
 
-// CHAT
+/* SEND MSG */
 function sendMsg(){
  let msg=document.getElementById("msg").value;
  if(!msg)return;
 
- if(msg==="/clear"){
-   db.ref("rooms/"+currentRoom).remove();
-   return;
- }
-
  db.ref("rooms/"+currentRoom).push({
-   name:username,
-   msg:msg,
-   time:Date.now()
+   name: username,
+   msg: msg,
+   time: Date.now(),
+   read: false
  });
 
  document.getElementById("msg").value="";
 }
 
+/* LOAD CHAT */
 function loadMessages(){
  let box=document.getElementById("chatBox");
  box.innerHTML="";
@@ -222,8 +257,14 @@ function loadMessages(){
  db.ref("rooms/"+currentRoom).off();
 
  db.ref("rooms/"+currentRoom).on("child_added",snap=>{
+   let key=snap.key;
    let d=snap.val();
    if(!d.msg)return;
+
+   // mark read kalau bukan kita
+   if(d.name !== username){
+     db.ref("rooms/"+currentRoom+"/"+key+"/read").set(true);
+   }
 
    let div=document.createElement("div");
    div.className="bubble "+(d.name===username?"me":"other");
@@ -231,23 +272,32 @@ function loadMessages(){
    let t=new Date(d.time);
    let time=t.getHours()+":"+String(t.getMinutes()).padStart(2,"0");
 
-   div.innerHTML="<b>"+d.name+"</b><br>"+d.msg+"<div class='meta'>"+time+"</div>";
+   let tickColor = d.read ? "#00aaff" : "#888";
+
+   div.innerHTML=
+   "<b>"+d.name+"</b><br>"+
+   d.msg+
+   "<div class='meta'>"+time+" <span style='color:"+tickColor+"'>✔</span></div>";
 
    box.appendChild(div);
    box.scrollTop=box.scrollHeight;
  });
 }
 
-// BACK
+/* BACK */
 function back(){
  document.getElementById("chat").style.display="none";
  document.getElementById("lobby").style.display="block";
 }
 
-// MODE
-function toggleMode(){
- document.body.classList.toggle("light");
- document.body.classList.toggle("dark");
+/* SETTINGS */
+function openSettings(){
+ alert(
+   "Settings:\n\n" +
+   "Nama: " + username + "\n" +
+   "Room: " + currentRoom + "\n\n" +
+   "Mode UI bisa kamu upgrade nanti 👍"
+ );
 }
 </script>
 
