@@ -3,56 +3,74 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GreenChat V6.1</title>
+<title>GreenChat V7.0</title>
 
 <style>
-body { margin:0; font-family:Arial; display:flex; height:100vh; }
+body {
+  margin:0;
+  font-family:Arial;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+}
 
-/* DARK MODE */
-body.dark { background:#0a0a0a; color:white; }
+/* TOP BAR */
+#top {
+  background:#075e54;
+  color:white;
+  display:flex;
+  padding:8px;
+  gap:10px;
+  align-items:center;
+}
+
+#search {
+  flex:1;
+  padding:8px;
+  border:none;
+  border-radius:5px;
+}
+
+/* MAIN */
+#main {
+  flex:1;
+  display:flex;
+}
 
 /* LEFT GROUP */
 #left {
-  width:25%;
-  background:#075e54;
+  width:20%;
+  background:#128c7e;
   color:white;
   overflow-y:auto;
 }
 
 /* RIGHT DM */
 #right {
-  width:25%;
-  background:#064c45;
+  width:20%;
+  background:#0b6b62;
   color:white;
   overflow-y:auto;
 }
 
-/* MID CHAT */
+/* CENTER CHAT */
 #mid {
-  width:50%;
+  width:60%;
   display:flex;
   flex-direction:column;
   background:#e5ddd5;
 }
 
-body.dark #mid { background:#111; }
-
-.item {
+/* HEADER CHAT */
+#header {
+  background:#075e54;
+  color:white;
   padding:10px;
-  border-bottom:1px solid #0c8;
-  cursor:pointer;
   display:flex;
-  gap:10px;
-  align-items:center;
+  justify-content:space-between;
 }
 
-.item img {
-  width:35px;
-  height:35px;
-  border-radius:50%;
-  background:white;
-}
-
+/* CHAT BOX */
 #chatBox {
   flex:1;
   overflow-y:auto;
@@ -61,6 +79,7 @@ body.dark #mid { background:#111; }
   flex-direction:column;
 }
 
+/* BUBBLE */
 .bubble {
   max-width:70%;
   padding:10px;
@@ -71,22 +90,28 @@ body.dark #mid { background:#111; }
 .me { align-self:flex-end; background:#dcf8c6; }
 .other { align-self:flex-start; background:white; }
 
-.meta { font-size:10px; text-align:right; }
+.meta {
+  font-size:10px;
+  text-align:right;
+}
 
+/* INPUT */
 #input {
   display:flex;
   padding:10px;
   background:white;
 }
 
-#input input { flex:1; }
+#input input {
+  flex:1;
+  padding:8px;
+}
 
-.header {
-  background:#075e54;
-  color:white;
+/* ITEM */
+.item {
   padding:10px;
-  display:flex;
-  justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,0.2);
+  cursor:pointer;
 }
 
 /* SETTINGS */
@@ -109,18 +134,26 @@ body.dark #mid { background:#111; }
 
 <body>
 
+<!-- TOP SEARCH -->
+<div id="top">
+<input id="search" placeholder="search user..." oninput="searchUser()">
+<button onclick="openSettings()">⚙</button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
 <!-- LEFT GROUP -->
 <div id="left">
 <h3>Groups</h3>
 <div id="groupList"></div>
 </div>
 
-<!-- MID CHAT -->
+<!-- MID -->
 <div id="mid">
 
-<div class="header">
-<div id="title">GreenChat</div>
-<div onclick="openSettings()">⚙</div>
+<div id="header">
+<div id="title">GreenChat V7</div>
 </div>
 
 <div id="chatBox"></div>
@@ -136,6 +169,8 @@ body.dark #mid { background:#111; }
 <div id="right">
 <h3>DM</h3>
 <div id="dmList"></div>
+</div>
+
 </div>
 
 <!-- SETTINGS -->
@@ -172,11 +207,12 @@ const firebaseConfig = {
   appId: "1:41752377914:web:881b1c19c011d6fea0d303",
   measurementId: "G-RLTTLG36SS"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
 
 /* ===================== */
-/* USER SYSTEM           */
+/* AUTO LOGIN SYSTEM     */
 /* ===================== */
 
 let user = localStorage.getItem("user");
@@ -184,36 +220,31 @@ let mode = "group";
 let target = "main";
 let privacy = false;
 
-/* AUTO LOGIN */
+/* BOOT */
 window.onload = function(){
+
  if(!user){
-   user = prompt("enter name");
+   user = prompt("Enter username:");
    localStorage.setItem("user",user);
  }
 
- loadUser();
- loadGroups();
- loadDM();
- openGroup("main");
-
- let theme = localStorage.getItem("theme");
- if(theme==="dark") document.body.classList.add("dark");
-};
-
-/* USER LOAD */
-function loadUser(){
- db.ref("users/"+user).set({
+ db.ref("users/"+user).update({
    online:true,
    lastSeen:Date.now()
  });
 
- window.onbeforeunload = ()=>{
-   db.ref("users/"+user).update({
-     online:false,
-     lastSeen:Date.now()
-   });
- };
-}
+ loadGroups();
+ loadDM();
+ openGroup("main");
+};
+
+/* OFFLINE TRACK */
+window.onbeforeunload = ()=>{
+ db.ref("users/"+user).update({
+   online:false,
+   lastSeen:Date.now()
+ });
+};
 
 /* ===================== */
 /* GROUP SYSTEM          */
@@ -229,7 +260,7 @@ function loadGroups(){
    Object.keys(d).forEach(g=>{
      let div=document.createElement("div");
      div.className="item";
-     div.innerHTML="💬 "+g;
+     div.innerText="💬 "+g;
      div.onclick=()=>openGroup(g);
      box.appendChild(div);
    });
@@ -260,18 +291,9 @@ function loadDM(){
      let div=document.createElement("div");
      div.className="item";
 
-     let status = u[n].privacy ? "" :
-       (u[n].online ? "🟢 online" :
-       "last seen "+new Date(u[n].lastSeen).toLocaleTimeString());
-
-     div.innerHTML = `
-       <div>
-         👤 ${n}
-         <div style="font-size:10px">${status}</div>
-       </div>
-     `;
-
+     div.innerHTML="👤 "+n;
      div.onclick=()=>openDM(n);
+
      box.appendChild(div);
    });
  });
@@ -282,6 +304,19 @@ function openDM(n){
  target=n;
  document.getElementById("title").innerText="DM "+n;
  loadChat();
+}
+
+/* ===================== */
+/* SEARCH USER           */
+/* ===================== */
+
+function searchUser(){
+ let q=document.getElementById("search").value.toLowerCase();
+ let items=document.querySelectorAll("#dmList .item");
+
+ items.forEach(i=>{
+   i.style.display=i.innerText.toLowerCase().includes(q)?"block":"none";
+ });
 }
 
 /* ===================== */
@@ -361,9 +396,10 @@ function saveSettings(){
 /* THEME */
 function toggleTheme(){
  document.body.classList.toggle("dark");
-
- let t=document.body.classList.contains("dark")?"dark":"light";
- localStorage.setItem("theme",t);
+ localStorage.setItem(
+   "theme",
+   document.body.classList.contains("dark")?"dark":"light"
+ );
 }
 </script>
 
