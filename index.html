@@ -6,34 +6,28 @@
 <title>GreenChat</title>
 
 <style>
-body { margin:0; font-family:Arial; background:#e5ddd5; }
+body { font-family:Arial; margin:0; background:#e5ddd5; }
 .container { max-width:420px; margin:auto; }
 
-.header {
-  background:#075e54; color:white; padding:10px;
-  display:flex; justify-content:space-between;
-}
-
 .chat-box {
-  height:70vh; overflow-y:auto;
-  padding:10px; display:flex; flex-direction:column;
+  height:60vh;
+  overflow-y:auto;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
 }
 
-.bubble { max-width:75%; padding:10px; margin:5px; border-radius:12px; }
+.bubble {
+  max-width:75%;
+  padding:10px;
+  margin:5px;
+  border-radius:10px;
+}
+
 .me { align-self:flex-end; background:#dcf8c6; }
 .other { align-self:flex-start; background:white; }
 
 .meta { font-size:10px; text-align:right; }
-
-.input-area { display:flex; padding:10px; background:white; }
-.input-area input { flex:1; padding:10px; }
-.input-area button { margin-left:5px; }
-
-.room {
-  padding:10px;
-  border-bottom:1px solid #ccc;
-  cursor:pointer;
-}
 </style>
 </head>
 
@@ -41,62 +35,28 @@ body { margin:0; font-family:Arial; background:#e5ddd5; }
 
 <div class="container">
 
-<div class="header">
-  <span>GreenChat</span>
-  <button onclick="openSettings()">⚙</button>
-</div>
-
-<!-- LOGIN -->
 <div id="login">
 <input id="name" placeholder="Nama...">
-<button onclick="saveName()">Masuk</button>
+<button onclick="login()">Masuk</button>
 </div>
 
-<!-- LOBBY -->
 <div id="lobby" style="display:none;">
-<h3>Halo, <span id="username"></span></h3>
-
-<input id="roomInput" placeholder="Room baru">
-<button onclick="joinRoom()">Join</button>
-
-<div id="roomList"></div>
-
-<button onclick="logout()">Logout</button>
+<h3 id="user"></h3>
+<input id="room" placeholder="Room">
+<button onclick="join()">Join</button>
 </div>
 
-<!-- CHAT -->
 <div id="chat" style="display:none;">
 <h3 id="roomTitle"></h3>
-
 <div id="chatBox" class="chat-box"></div>
 
-<div class="input-area">
-<input id="msg" placeholder="Ketik...">
-<button onclick="sendMsg()">➤</button>
-</div>
-
+<input id="msg">
+<button onclick="send()">Kirim</button>
 <button onclick="back()">Back</button>
 </div>
 
 </div>
 
-<!-- SETTINGS -->
-<div id="settings" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0008;">
-  <div style="background:white; padding:20px; margin:50px auto; width:90%; max-width:350px;">
-    <h3>Settings</h3>
-    Nama:
-    <input id="setName"><br><br>
-
-    <label>
-      <input type="checkbox" id="privacy"> Privacy Read
-    </label><br><br>
-
-    <button onclick="saveSettings()">Save</button>
-    <button onclick="closeSettings()">Close</button>
-  </div>
-</div>
-
-<!-- FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 
@@ -116,112 +76,143 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let username="";
-let currentRoom="";
-let privacy=false;
-
-/* LOAD */
-window.onload=function(){
- username = localStorage.getItem("name") || "";
- privacy = localStorage.getItem("privacy")==="true";
-
- if(username) showLobby();
- loadRooms();
-};
+let room="";
+let isAdmin=false;
+let admins={};
+let locked=false;
 
 /* LOGIN */
-function saveName(){
- username=document.getElementById("name").value;
- if(!username)return;
- localStorage.setItem("name",username);
- showLobby();
+function login(){
+ let n=document.getElementById("name").value;
+ if(!n)return;
+
+ db.ref("users/"+n).once("value",snap=>{
+   if(snap.exists()){
+     alert("nama sudah dipakai!");
+   } else {
+     db.ref("users/"+n).set(true);
+     username=n;
+     document.getElementById("login").style.display="none";
+     document.getElementById("lobby").style.display="block";
+     document.getElementById("user").innerText="Halo "+n;
+   }
+ });
 }
 
-/* LOBBY */
-function showLobby(){
- document.getElementById("login").style.display="none";
- document.getElementById("lobby").style.display="block";
- document.getElementById("username").innerText=username;
-}
-
-/* ROOM */
-function joinRoom(){
- let room=document.getElementById("roomInput").value;
+/* JOIN */
+function join(){
+ room=document.getElementById("room").value;
  if(!room)return;
 
- currentRoom=room;
+ // init admin list
+ db.ref("rooms/"+room+"/admins").once("value",snap=>{
+   if(!snap.exists()){
+     db.ref("rooms/"+room+"/admins/"+username).set(true);
+   }
+ });
 
- let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
- if(!rooms.includes(room)){
-   rooms.push(room);
-   localStorage.setItem("rooms",JSON.stringify(rooms));
- }
+ db.ref("rooms/"+room+"/admins").on("value",snap=>{
+   admins=snap.val()||{};
+   isAdmin = admins[username] || username==="admin";
+ });
 
- loadRooms();
+ db.ref("rooms/"+room+"/lock").on("value",s=>{
+   locked=s.val()===true;
+ });
 
  document.getElementById("lobby").style.display="none";
  document.getElementById("chat").style.display="block";
  document.getElementById("roomTitle").innerText=room;
 
- loadMessages();
-}
-
-/* LOAD ROOM LIST */
-function loadRooms(){
- let list=document.getElementById("roomList");
- list.innerHTML="";
-
- let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
-
- rooms.forEach(r=>{
-   let div=document.createElement("div");
-   div.className="room";
-   div.innerText=r;
-   div.onclick=()=>{
-     document.getElementById("roomInput").value=r;
-     joinRoom();
-   };
-   list.appendChild(div);
- });
+ load();
 }
 
 /* SEND */
-function sendMsg(){
- let msg=document.getElementById("msg").value;
- if(!msg)return;
+function send(){
+ let text=document.getElementById("msg").value;
+ if(!text)return;
 
- db.ref("rooms/"+currentRoom).push({
-   name:username,
-   msg:msg,
-   time:Date.now(),
-   read:false
+ if(locked && !isAdmin){
+   alert("room dikunci!");
+   return;
+ }
+
+ // cek kick
+ db.ref("rooms/"+room+"/kick/"+username).once("value",snap=>{
+   let until=snap.val();
+   if(until && Date.now()<until){
+     alert("kamu di-kick sementara!");
+     return;
+   }
+
+   if(text.startsWith("/")){
+     command(text);
+     return;
+   }
+
+   db.ref("rooms/"+room+"/msg").push({
+     name:username,
+     text:text,
+     time:Date.now()
+   });
+
+   document.getElementById("msg").value="";
  });
-
- document.getElementById("msg").value="";
 }
 
-/* LOAD MSG */
-function loadMessages(){
+/* COMMAND */
+function command(cmd){
+ let p=cmd.split(" ");
+
+ if(!isAdmin){
+   alert("bukan admin!");
+   return;
+ }
+
+ if(p[0]==="/add"){
+   db.ref("rooms/"+room+"/admins/"+p[1]).set(true);
+ }
+
+ if(p[0]==="/clear"){
+   db.ref("rooms/"+room+"/msg").remove();
+ }
+
+ if(p[0]==="/lock"){
+   db.ref("rooms/"+room+"/lock").set(true);
+ }
+
+ if(p[0]==="/kick"){
+   let name=p[1];
+   let sec=parseInt(p[2])||10;
+   let until=Date.now()+sec*1000;
+
+   db.ref("rooms/"+room+"/kick/"+name).set(until);
+ }
+}
+
+/* LOAD */
+function load(){
  let box=document.getElementById("chatBox");
  box.innerHTML="";
- db.ref("rooms/"+currentRoom).off();
 
- db.ref("rooms/"+currentRoom).on("child_added",snap=>{
-   let key=snap.key;
+ db.ref("rooms/"+room+"/msg").off();
+
+ db.ref("rooms/"+room+"/msg").on("child_added",snap=>{
    let d=snap.val();
-
-   if(!privacy && d.name !== username){
-     db.ref("rooms/"+currentRoom+"/"+key+"/read").set(true);
-   }
 
    let div=document.createElement("div");
    div.className="bubble "+(d.name===username?"me":"other");
 
-   let time=new Date(d.time).toLocaleTimeString().slice(0,5);
-   let tickColor = d.read ? "#00aaff" : "#888";
+   let name=d.name;
+   if(admins[d.name] || d.name==="admin"){
+     name+=" (admin)";
+   }
 
-   div.innerHTML =
-   "<b>"+d.name+"</b><br>"+d.msg+
-   "<div class='meta'>"+time+" <span style='color:"+tickColor+"'>✔</span></div>";
+   let time=new Date(d.time).toLocaleTimeString().slice(0,5);
+
+   div.innerHTML=
+   "<b>"+name+"</b><br>"+d.text+
+   "<div class='meta'>"+time+"</div>";
 
    box.appendChild(div);
    box.scrollTop=box.scrollHeight;
@@ -232,31 +223,6 @@ function loadMessages(){
 function back(){
  document.getElementById("chat").style.display="none";
  document.getElementById("lobby").style.display="block";
-}
-
-/* SETTINGS */
-function openSettings(){
- document.getElementById("settings").style.display="block";
- document.getElementById("setName").value=username;
- document.getElementById("privacy").checked=privacy;
-}
-function closeSettings(){
- document.getElementById("settings").style.display="none";
-}
-function saveSettings(){
- username=document.getElementById("setName").value;
- privacy=document.getElementById("privacy").checked;
-
- localStorage.setItem("name",username);
- localStorage.setItem("privacy",privacy);
-
- closeSettings();
-}
-
-/* LOGOUT */
-function logout(){
- localStorage.removeItem("name");
- location.reload();
 }
 </script>
 
