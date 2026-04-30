@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GreenChat V5</title>
+<title>GreenChat V5.1</title>
 
 <style>
 body { margin:0; font-family:Arial; background:#e5ddd5; }
-body.dark { background:#0a0a0a; color:#00ff88; }
 
 .header {
   background:#075e54;
@@ -28,8 +27,8 @@ body.dark { background:#0a0a0a; color:#00ff88; }
   width:40px;
   height:40px;
   border-radius:50%;
-  background:white;
   object-fit:cover;
+  background:white;
 }
 
 .menu { position:relative; cursor:pointer; }
@@ -38,12 +37,11 @@ body.dark { background:#0a0a0a; color:#00ff88; }
   right:0;
   top:30px;
   background:white;
-  color:black;
   display:none;
   width:180px;
   border:1px solid #ccc;
 }
-.dropdown div { padding:10px; cursor:pointer; }
+.dropdown div { padding:10px; }
 .dropdown div:hover { background:#eee; }
 
 .chat-box {
@@ -81,6 +79,7 @@ body.dark { background:#0a0a0a; color:#00ff88; }
   border-bottom:1px solid #ccc;
   display:flex;
   justify-content:space-between;
+  cursor:pointer;
 }
 
 #settings, #modal {
@@ -112,8 +111,10 @@ body.dark { background:#0a0a0a; color:#00ff88; }
 <!-- LOBBY -->
 <div id="lobby" style="display:none;">
 <h3 id="user"></h3>
+
 <input id="roomInput" placeholder="Room">
 <button onclick="joinRoom()">Join</button>
+
 <div id="roomList"></div>
 <button onclick="logout()">Logout</button>
 </div>
@@ -150,27 +151,13 @@ body.dark { background:#0a0a0a; color:#00ff88; }
 <input type="file" id="file" hidden onchange="upload(event)">
 
 <button onclick="back()">Back</button>
-
 </div>
 
-<!-- SETTINGS -->
-<div id="settings">
-<div class="box">
-<h3>Settings</h3>
-<input id="setName"><br><br>
-<label><input type="checkbox" id="privacy"> Privacy Read</label><br><br>
-<button onclick="toggleTheme()">Dark/Light</button><br><br>
-<button onclick="saveSettings()">Save</button>
-<button onclick="closeSettings()">Close</button>
-</div>
-</div>
-
-<!-- GROUP IMG -->
+<!-- GROUP IMAGE MODAL -->
 <div id="modal">
 <div class="box">
-<h3>Group Image</h3>
-<input id="imgUrl" placeholder="Imgur link">
-<button onclick="setImg()">Save</button>
+<h3>Set Group Image</h3>
+<input type="file" id="groupFile" onchange="uploadGroupImg(event)">
 <button onclick="closeModal()">Close</button>
 </div>
 </div>
@@ -190,13 +177,23 @@ const firebaseConfig = {
   appId: "1:41752377914:web:881b1c19c011d6fea0d303",
   measurementId: "G-RLTTLG36SS"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
 
 let user="";
 let room="";
 let admins={};
-let privacy=false;
+
+/* AUTO LOGIN */
+window.onload=function(){
+ let saved = localStorage.getItem("user");
+ if(saved){
+   user = saved;
+   afterLogin();
+ }
+ loadRooms();
+}
 
 /* LOGIN */
 function login(){
@@ -206,26 +203,41 @@ function login(){
  db.ref("users/"+n).once("value",s=>{
    if(!s.exists()){
      db.ref("users/"+n).set({pass:p});
-     user=n;
-     afterLogin();
+     setUser(n);
    } else {
      if(s.val().pass===p){
-       user=n;
-       afterLogin();
+       setUser(n);
      } else alert("wrong pass");
    }
  });
+}
+
+function setUser(n){
+ user=n;
+ localStorage.setItem("user",n);
+ afterLogin();
 }
 
 function afterLogin(){
  document.getElementById("login").style.display="none";
  document.getElementById("lobby").style.display="block";
  document.getElementById("user").innerText=user;
+ loadRooms();
 }
 
-/* ROOM */
+/* ROOM SYSTEM */
 function joinRoom(){
  room=document.getElementById("roomInput").value;
+
+ if(!room) return;
+
+ // save room list
+ let rooms = JSON.parse(localStorage.getItem("rooms")||"[]");
+ if(!rooms.includes(room)){
+   rooms.push(room);
+   localStorage.setItem("rooms",JSON.stringify(rooms));
+ }
+ loadRooms();
 
  db.ref("rooms/"+room+"/users/"+user).set(true);
 
@@ -236,32 +248,51 @@ function joinRoom(){
  });
 
  db.ref("rooms/"+room+"/img").on("value",s=>{
-   document.getElementById("groupImg").src=s.val()||"";
+   let img=s.val();
+   document.getElementById("groupImg").src=img||"";
  });
 
- load();
+ loadMessages();
 
  document.getElementById("lobby").style.display="none";
  document.getElementById("chat").style.display="block";
  document.getElementById("roomTitle").innerText=room;
 }
 
-/* SEND TEXT */
+/* ROOM LIST */
+function loadRooms(){
+ let list=document.getElementById("roomList");
+ list.innerHTML="";
+
+ let rooms = JSON.parse(localStorage.getItem("rooms")||"[]");
+
+ rooms.forEach(r=>{
+   let div=document.createElement("div");
+   div.className="room";
+   div.innerHTML="💬 "+r;
+   div.onclick=()=>{
+     document.getElementById("roomInput").value=r;
+     joinRoom();
+   };
+   list.appendChild(div);
+ });
+}
+
+/* CHAT */
 function send(){
- let m=document.getElementById("msg").value;
- if(!m)return;
+ let msg=document.getElementById("msg").value;
+ if(!msg)return;
 
  db.ref("rooms/"+room+"/msg").push({
    name:user,
-   msg:m,
-   time:Date.now(),
-   read:false
+   msg:msg,
+   time:Date.now()
  });
 
  document.getElementById("msg").value="";
 }
 
-/* IMAGE */
+/* IMAGE MESSAGE */
 function pickImage(){
  document.getElementById("file").click();
 }
@@ -282,7 +313,7 @@ function upload(e){
 }
 
 /* LOAD CHAT */
-function load(){
+function loadMessages(){
  let box=document.getElementById("chatBox");
  box.innerHTML="";
 
@@ -296,8 +327,13 @@ function load(){
 
    let content="";
 
-   if(d.msg) content="<b>"+d.name+"</b><br>"+d.msg;
-   if(d.img) content="<b>"+d.name+"</b><br><img src='"+d.img+"' style='max-width:200px;border-radius:10px'>";
+   if(d.msg){
+     content="<b>"+d.name+"</b><br>"+d.msg;
+   }
+
+   if(d.img){
+     content="<b>"+d.name+"</b><br><img src='"+d.img+"' style='max-width:200px;border-radius:10px'>";
+   }
 
    let time=new Date(d.time).toLocaleTimeString().slice(0,5);
 
@@ -308,19 +344,32 @@ function load(){
  });
 }
 
+/* GROUP IMAGE UPLOAD */
+function openImg(){
+ document.getElementById("modal").style.display="block";
+}
+
+function uploadGroupImg(e){
+ let f=e.target.files[0];
+ let r=new FileReader();
+
+ r.onload=function(){
+   db.ref("rooms/"+room+"/img").set(r.result);
+ };
+
+ r.readAsDataURL(f);
+ closeModal();
+}
+
+function closeModal(){
+ document.getElementById("modal").style.display="none";
+}
+
 /* MENU */
 function toggleMenu(){
  let d=document.getElementById("dropdown");
  d.style.display=d.style.display==="block"?"none":"block";
 }
-
-/* GROUP IMG */
-function openImg(){ document.getElementById("modal").style.display="block"; }
-function setImg(){
- db.ref("rooms/"+room+"/img").set(document.getElementById("imgUrl").value);
- closeModal();
-}
-function closeModal(){ document.getElementById("modal").style.display="none"; }
 
 /* INFO */
 function showInfo(){
@@ -334,23 +383,12 @@ function clearChat(){
  db.ref("rooms/"+room+"/msg").remove();
 }
 
-/* SETTINGS */
-function saveSettings(){
- user=document.getElementById("setName").value;
- privacy=document.getElementById("privacy").checked;
- localStorage.setItem("name",user);
- localStorage.setItem("privacy",privacy);
- closeSettings();
-}
-function toggleTheme(){
- document.body.classList.toggle("dark");
-}
-
 /* NAV */
 function back(){ location.reload(); }
-function logout(){ localStorage.clear(); location.reload(); }
-
-function closeSettings(){ document.getElementById("settings").style.display="none"; }
+function logout(){
+ localStorage.removeItem("user");
+ location.reload();
+}
 </script>
 
 </body>
