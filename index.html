@@ -85,7 +85,8 @@ body.dark { background:#0a0a0a; color:#00ff88; }
 <!-- LOGIN -->
 <div id="login">
 <input id="name" placeholder="Nama...">
-<button onclick="login()">Masuk</button>
+<input id="pass" type="password" placeholder="Password...">
+<button onclick="login()">Login / Register</button>
 </div>
 
 <!-- LOBBY -->
@@ -164,26 +165,34 @@ let locked=false;
 window.onload=function(){
  username=localStorage.getItem("name")||"";
  privacy=localStorage.getItem("privacy")==="true";
-
  document.body.className=localStorage.getItem("theme")||"";
 
  if(username) showLobby();
  loadRooms();
 };
 
-/* LOGIN */
+/* LOGIN SYSTEM */
 function login(){
  let n=document.getElementById("name").value;
- if(!n)return;
+ let p=document.getElementById("pass").value;
+ if(!n||!p)return alert("isi semua");
 
  db.ref("users/"+n).once("value",snap=>{
-   if(snap.exists()){
-     alert("nama sudah dipakai!");
-   } else {
-     db.ref("users/"+n).set(true);
+   if(!snap.exists()){
+     // register
+     db.ref("users/"+n).set({pass:p});
      username=n;
      localStorage.setItem("name",n);
      showLobby();
+   } else {
+     // login
+     if(snap.val().pass===p){
+       username=n;
+       localStorage.setItem("name",n);
+       showLobby();
+     } else {
+       alert("password salah!");
+     }
    }
  });
 }
@@ -202,7 +211,7 @@ function joinRoom(){
 
  currentRoom=room;
 
- // simpan room local
+ // simpan room
  let rooms=JSON.parse(localStorage.getItem("rooms")||"[]");
  if(!rooms.includes(room)){
    rooms.push(room);
@@ -210,7 +219,7 @@ function joinRoom(){
  }
  loadRooms();
 
- // init admin
+ // admin init
  db.ref("rooms/"+room+"/admins").once("value",snap=>{
    if(!snap.exists()){
      db.ref("rooms/"+room+"/admins/"+username).set(true);
@@ -263,7 +272,6 @@ function sendMsg(){
    return;
  }
 
- // cek kick
  db.ref("rooms/"+currentRoom+"/kick/"+username).once("value",snap=>{
    let until=snap.val();
    if(until && Date.now()<until){
