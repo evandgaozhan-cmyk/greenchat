@@ -311,11 +311,51 @@ function loadMessages(){
    div.className="bubble "+(d.name===user?"me":"other");
 
    let content="";
-   if(d.msg) content=d.name+"<br>"+d.msg;
-   if(d.img) content=d.name+"<br><img src='"+d.img+"' width=150>";
 
-   div.innerHTML=content;
+   if(d.msg){
+     content="<b>"+d.name+"</b><br>"+d.msg;
+   }
+
+   if(d.img){
+     content="<b>"+d.name+"</b><br><img src='"+d.img+"' style='max-width:200px;border-radius:10px'>";
+   }
+
+   // 🟢 TANDAI SUDAH DIBACA
+   if(d.name !== user){
+     db.ref("rooms/"+room+"/msg/"+s.key+"/read/"+user).set(true);
+   }
+
+   // 🟢 CEK STATUS READ
+   let read = d.read && d.read[user];
+
+   // ⏱️ FORMAT JAM
+   let date = new Date(d.time);
+   let time = date.getHours().toString().padStart(2,"0") + ":" +
+              date.getMinutes().toString().padStart(2,"0");
+
+   // ✔ CENTANG
+   let tick = "";
+   if(!localStorage.getItem("privacy")){
+     if(read){
+       tick = "<span style='color:#34b7f1'>✔</span>"; // biru
+     } else {
+       tick = "✔"; // abu
+     }
+   }
+
+   div.innerHTML = content + `
+     <div style="
+       font-size:10px;
+       text-align:right;
+       opacity:0.6;
+       margin-top:4px;
+     ">
+       ${time} ${tick}
+     </div>
+   `;
+
    chatBox.appendChild(div);
+   chatBox.scrollTop = chatBox.scrollHeight;
  });
 }
 
