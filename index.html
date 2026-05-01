@@ -76,7 +76,7 @@ body.dark { background:#0a0a0a; color:#0f0; }
 <div id="login">
 <input id="name" placeholder="Nama">
 <input id="pass" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
+<button onclick="loginUser()">Login</button>
 </div>
 
 <!-- LOBBY -->
@@ -128,12 +128,9 @@ body.dark { background:#0a0a0a; color:#0f0; }
 <div class="box">
 <h3>Settings</h3>
 
-<input id="newName" placeholder="Nama baru">
-<button onclick="changeName()">Ganti Nama</button>
-
 <label>
 <input type="checkbox" id="privacy"> Privacy Mode
-</label><br>
+</label><br><br>
 
 <button onclick="toggleTheme()">Dark/Light</button>
 <button onclick="closeSettings()">Close</button>
@@ -183,15 +180,19 @@ window.onload=function(){
    });
  }
 
- loadRooms();
-
  if(localStorage.getItem("theme")==="dark"){
    document.body.classList.add("dark");
  }
+
+ if(localStorage.getItem("privacy")){
+   privacy.checked=true;
+ }
+
+ loadRooms();
 };
 
 /* LOGIN */
-function login(){
+function loginUser(){
  let n=name.value.trim().toLowerCase();
  let p=pass.value;
 
@@ -216,7 +217,7 @@ function setUser(n,p){
 
 function afterLogin(){
  document.getElementById("login").style.display="none";
-document.getElementById("lobby").style.display="block";
+ document.getElementById("lobby").style.display="block";
  document.getElementById("user").innerText=user;
 }
 
@@ -224,20 +225,14 @@ document.getElementById("lobby").style.display="block";
 function openSettings(){ settings.style.display="block"; }
 function closeSettings(){ settings.style.display="none"; }
 
-function changeName(){
- let n=newName.value.trim().toLowerCase();
- if(!n) return;
-
- db.ref("users/"+n).set({pass:localStorage.getItem("pass")});
- localStorage.setItem("user",n);
- user=n;
- alert("nama diganti");
-}
+privacy.onchange=function(){
+ localStorage.setItem("privacy", this.checked?"1":"");
+};
 
 function toggleTheme(){
  document.body.classList.toggle("dark");
  localStorage.setItem("theme",
-   document.body.classList.contains("dark")?"dark":"light"
+  document.body.classList.contains("dark")?"dark":"light"
  );
 }
 
@@ -398,7 +393,8 @@ function showInfo(){
 }
 
 function toggleMenu(){
- dropdown.style.display = dropdown.style.display==="block"?"none":"block";
+ dropdown.style.display =
+ dropdown.style.display==="block"?"none":"block";
 }
 
 function openImg(){ modal.style.display="block"; }
