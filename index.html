@@ -215,8 +215,8 @@ function setUser(n,p){
 }
 
 function afterLogin(){
- login.style.display="none";
- lobby.style.display="block";
+ document.getElementById("login").style.display="none";
+document.getElementById("lobby").style.display="block";
  document.getElementById("user").innerText=user;
 }
 
