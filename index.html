@@ -98,11 +98,18 @@ function login(){
 
  db.ref("users/"+n).once("value",snap=>{
    if(!snap.exists()){
+     // user baru
      db.ref("users/"+n).set({pass:p});
      enter(n,p);
    }else{
-     if(snap.val().pass===p) enter(n,p);
-     else alert("password salah");
+     let savedPass = snap.val().pass;
+
+     if(savedPass === p){
+       // password cocok → BOLEH LOGIN (termasuk admin)
+       enter(n,p);
+     }else{
+       alert("nama sudah dipakai");
+     }
    }
  });
 }
