@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GreenChat V5.2</title>
+<title>GreenChat V5.2 FIX</title>
 
 <style>
 body { margin:0; font-family:Arial; background:#e5ddd5; }
@@ -15,132 +15,101 @@ body.dark { background:#0a0a0a; color:#0f0; }
   padding:10px;
   display:flex;
   justify-content:space-between;
-  align-items:center;
 }
 
-.group { display:flex; align-items:center; gap:10px; }
+.group { display:flex; gap:10px; align-items:center; }
 
 .group img {
   width:40px; height:40px; border-radius:50%;
-  object-fit:cover; background:white;
+  background:white;
 }
 
-.menu { position:relative; cursor:pointer; }
 .dropdown {
-  position:absolute; right:0; top:30px;
-  background:white; display:none; width:180px;
+  position:absolute;
+  background:white;
+  display:none;
 }
-.dropdown div { padding:10px; }
-.dropdown div:hover { background:#eee; }
 
 .chat-box {
-  height:65vh; overflow-y:auto;
-  padding:10px; display:flex; flex-direction:column;
+  height:65vh;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
 }
 
-.bubble { max-width:75%; padding:10px; margin:5px; border-radius:12px; }
+.bubble { margin:5px; padding:10px; border-radius:12px; max-width:75%; }
 .me { align-self:flex-end; background:#dcf8c6; }
 .other { align-self:flex-start; background:white; }
 
-.meta { font-size:10px; text-align:right; }
+.input { display:flex; }
+.input input { flex:1; }
 
-.input { display:flex; padding:10px; background:white; }
-.input input { flex:1; padding:10px; }
+.room { padding:10px; border-bottom:1px solid #ccc; cursor:pointer; }
 
-.camera { padding:10px; cursor:pointer; }
-
-.room {
-  padding:10px;
-  border-bottom:1px solid #ccc;
-  cursor:pointer;
-}
-
-#settings, #modal {
-  position:fixed; top:0; left:0;
-  width:100%; height:100%;
-  background:#0008; display:none;
-}
-
-.box {
-  background:white;
-  margin:50px auto;
-  padding:20px;
-  width:90%;
+#settings,#modal {
+ position:fixed;
+ width:100%;
+ height:100%;
+ background:#0008;
+ display:none;
 }
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
 <div id="login">
 <input id="name" placeholder="Nama">
 <input id="pass" type="password" placeholder="Password">
 <button onclick="loginUser()">Login</button>
 </div>
 
-<!-- LOBBY -->
 <div id="lobby" style="display:none;">
 <h3 id="user"></h3>
-
 <input id="roomInput" placeholder="Room">
 <button onclick="joinRoom()">Join</button>
-
 <div id="roomList"></div>
 <button onclick="openSettings()">Settings</button>
 <button onclick="logout()">Logout</button>
 </div>
 
-<!-- CHAT -->
 <div id="chat" style="display:none;">
-
 <div class="header">
-  <div class="group">
-    <img id="groupImg">
-    <div id="roomTitle"></div>
-  </div>
+<div class="group">
+<img id="groupImg">
+<div id="roomTitle"></div>
+</div>
 
-  <div class="menu" onclick="toggleMenu()">
-    ⋮
-    <div class="dropdown" id="dropdown">
-      <div onclick="openImg()">Gambar Grup</div>
-      <div onclick="showInfo()">Info Grup</div>
-      <div onclick="clearChat()">Clear Chat</div>
-      <div onclick="openSettings()">Settings</div>
-    </div>
-  </div>
+<div onclick="toggleMenu()">⋮
+<div id="dropdown" class="dropdown">
+<div onclick="openImg()">Gambar Grup</div>
+<div onclick="clearChat()">Clear Chat</div>
+</div>
+</div>
 </div>
 
 <div id="chatBox" class="chat-box"></div>
 
 <div class="input">
-  <div class="camera" onclick="pickImage()">📷</div>
-  <input id="msg" placeholder="Ketik...">
-  <button onclick="send()">➤</button>
+<div onclick="pickImage()">📷</div>
+<input id="msg">
+<button onclick="send()">➤</button>
 </div>
 
 <input type="file" id="file" hidden onchange="upload(event)">
 <button onclick="back()">Back</button>
 </div>
 
-<!-- SETTINGS -->
 <div id="settings">
-<div class="box">
-<h3>Settings</h3>
-
-<label>
-<input type="checkbox" id="privacy"> Privacy Mode
-</label><br><br>
-
-<button onclick="toggleTheme()">Dark/Light</button>
+<div>
+<label><input type="checkbox" id="privacy"> Privacy</label>
+<button onclick="toggleTheme()">Theme</button>
 <button onclick="closeSettings()">Close</button>
 </div>
 </div>
 
-<!-- GROUP IMG -->
 <div id="modal">
-<div class="box">
-<h3>Set Group Image</h3>
+<div>
 <input type="file" onchange="uploadGroupImg(event)">
 <button onclick="closeModal()">Close</button>
 </div>
@@ -166,17 +135,22 @@ const db=firebase.database();
 
 let user="", room="", admins={}, locked=false;
 
-/* AUTO LOGIN */
+/* LOAD */
 window.onload=function(){
+
  let u=localStorage.getItem("user");
  let p=localStorage.getItem("pass");
+
+ if(u) u=u.toLowerCase();
 
  if(u && p){
    db.ref("users/"+u).once("value",s=>{
      if(s.exists() && s.val().pass===p){
        user=u;
        afterLogin();
-     }else localStorage.clear();
+     } else {
+       localStorage.clear();
+     }
    });
  }
 
@@ -184,8 +158,13 @@ window.onload=function(){
    document.body.classList.add("dark");
  }
 
- if(localStorage.getItem("privacy")){
-   privacy.checked=true;
+ let priv=document.getElementById("privacy");
+ if(priv){
+   if(localStorage.getItem("privacy")) priv.checked=true;
+
+   priv.onchange=function(){
+     localStorage.setItem("privacy", this.checked?"1":"");
+   };
  }
 
  loadRooms();
@@ -193,8 +172,10 @@ window.onload=function(){
 
 /* LOGIN */
 function loginUser(){
- let n=name.value.trim().toLowerCase();
- let p=pass.value;
+ let n=document.getElementById("name").value.trim().toLowerCase();
+ let p=document.getElementById("pass").value;
+
+ if(!n||!p) return alert("isi dulu");
 
  db.ref("users/"+n).once("value",s=>{
    if(!s.exists()){
@@ -219,21 +200,6 @@ function afterLogin(){
  document.getElementById("login").style.display="none";
  document.getElementById("lobby").style.display="block";
  document.getElementById("user").innerText=user;
-}
-
-/* SETTINGS */
-function openSettings(){ settings.style.display="block"; }
-function closeSettings(){ settings.style.display="none"; }
-
-privacy.onchange=function(){
- localStorage.setItem("privacy", this.checked?"1":"");
-};
-
-function toggleTheme(){
- document.body.classList.toggle("dark");
- localStorage.setItem("theme",
-  document.body.classList.contains("dark")?"dark":"light"
- );
 }
 
 /* ROOM */
@@ -262,14 +228,14 @@ function joinRoom(){
  });
 
  db.ref("rooms/"+room+"/img").on("value",s=>{
-   groupImg.src=s.val()||"";
+   document.getElementById("groupImg").src=s.val()||"";
  });
 
  loadMessages();
 
- lobby.style.display="none";
- chat.style.display="block";
- roomTitle.innerText=room;
+ document.getElementById("lobby").style.display="none";
+ document.getElementById("chat").style.display="block";
+ document.getElementById("roomTitle").innerText=room;
  loadRooms();
 }
 
@@ -303,28 +269,18 @@ function send(){
  msg.value="";
 }
 
-/* COMMAND */
+/* CMD */
 function handleCmd(m){
  if(!isAdmin()) return alert("bukan admin");
 
  let a=m.split(" ");
 
- if(a[0]==="/lock"){
-   db.ref("rooms/"+room+"/locked").set(true);
- }
-
- if(a[0]==="/add"){
-   db.ref("rooms/"+room+"/admins/"+a[1]).set(true);
- }
-
+ if(a[0]==="/lock") db.ref("rooms/"+room+"/locked").set(true);
+ if(a[0]==="/add") db.ref("rooms/"+room+"/admins/"+a[1]).set(true);
  if(a[0]==="/kick"){
    let u=a[1];
    let sec=parseInt(a[2])||60;
    db.ref("rooms/"+room+"/kicked/"+u).set(Date.now()+sec*1000);
- }
-
- if(a[0]==="/clear"){
-   db.ref("rooms/"+room+"/msg").remove();
  }
 }
 
@@ -343,7 +299,7 @@ function upload(e){
  r.readAsDataURL(e.target.files[0]);
 }
 
-/* LOAD */
+/* CHAT */
 function loadMessages(){
  chatBox.innerHTML="";
  db.ref("rooms/"+room+"/msg").off();
@@ -355,16 +311,11 @@ function loadMessages(){
    div.className="bubble "+(d.name===user?"me":"other");
 
    let content="";
-   if(d.msg) content="<b>"+d.name+"</b><br>"+d.msg;
-   if(d.img) content="<b>"+d.name+"</b><br><img src='"+d.img+"' style='max-width:200px'>";
+   if(d.msg) content=d.name+"<br>"+d.msg;
+   if(d.img) content=d.name+"<br><img src='"+d.img+"' width=150>";
 
-   let time=new Date(d.time).toLocaleTimeString().slice(0,5);
-   let tick=localStorage.getItem("privacy")?"":"✔";
-
-   div.innerHTML=content+"<div class='meta'>"+time+" "+tick+"</div>";
-
+   div.innerHTML=content;
    chatBox.appendChild(div);
-   chatBox.scrollTop=chatBox.scrollHeight;
  });
 }
 
@@ -375,7 +326,7 @@ function loadRooms(){
  rooms.forEach(r=>{
    let d=document.createElement("div");
    d.className="room";
-   d.innerText="💬 "+r;
+   d.innerText=r;
    d.onclick=()=>{roomInput.value=r; joinRoom();}
    roomList.appendChild(d);
  });
@@ -386,15 +337,19 @@ function clearChat(){
  db.ref("rooms/"+room+"/msg").remove();
 }
 
-function showInfo(){
- db.ref("rooms/"+room+"/users").once("value",s=>{
-   alert("Users: "+s.numChildren());
- });
+function toggleMenu(){
+ let d=document.getElementById("dropdown");
+ d.style.display=d.style.display==="block"?"none":"block";
 }
 
-function toggleMenu(){
- dropdown.style.display =
- dropdown.style.display==="block"?"none":"block";
+function openSettings(){ settings.style.display="block"; }
+function closeSettings(){ settings.style.display="none"; }
+
+function toggleTheme(){
+ document.body.classList.toggle("dark");
+ localStorage.setItem("theme",
+  document.body.classList.contains("dark")?"dark":"light"
+ );
 }
 
 function openImg(){ modal.style.display="block"; }
@@ -406,7 +361,6 @@ function uploadGroupImg(e){
    db.ref("rooms/"+room+"/img").set(r.result);
  };
  r.readAsDataURL(e.target.files[0]);
- closeModal();
 }
 
 function back(){ location.reload(); }
