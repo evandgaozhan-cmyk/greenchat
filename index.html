@@ -92,7 +92,7 @@ let username="", currentRoom="";
 
 /* LOGIN */
 function login(){
- let n=name.value.trim();
+ let n=name.value.trim().toLowerCase();
  let p=pass.value.trim();
  if(!n||!p)return alert("isi semua");
 
